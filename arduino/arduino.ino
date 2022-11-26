@@ -73,6 +73,7 @@ void loop()
   // Wait until the client returns from getting all of the data.
   unsigned long timeout = millis();
   while (client.available() == 0) {
+    Serial.println("Waiting for client to come available.")
     if (millis() - timeout > 5000) {
       Serial.println(">>> Client timeout !");
       client.stop();
