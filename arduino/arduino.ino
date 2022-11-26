@@ -1,8 +1,12 @@
+// Run on an ESP device, control an LED (ws2812-type) string.
+// Collect color settings to implement from an HTTP request to a hardcoded
+// URL.
+#include <Arduino.h>
 #include "FastLED.h"
-
-// Pride2015
-// Animated, ever-changing rainbows.
-// by Mark Kriegsman
+#include <ESP8266WiFi.h>
+#include <ESP8266WiFiMulti.h>
+#include <ESP8266HTTPClient.h>
+#include <WiFiClient.h>
 
 #if FASTLED_VERSION < 3001000
 #error "Requires FastLED 3.1 or later; check github for latest code."
@@ -13,16 +17,38 @@
 #define LED_TYPE    NEOPIXEL
 #define COLOR_ORDER RGB
 #define NUM_LEDS    30
-#define BRIGHTNESS  200
+#define BRIGHTNESS  100
+
+const char* HOST = "mailserver.ops-netman.net";
+const char* PORT = "6789";
+const char* URI = "/status";
+const char* SSID = "theaternet";
+const char* PASS = "network123";
 
 CRGB leds[NUM_LEDS];
 
 
 void setup() {
+  // Setup the serial output for console/logging.
+  Serial.begin(9600);
+  Serial.setDebugOutput(true);
+  Serial.println();
+  Serial.println();
+  Serial.println();
+  Serial.println("[setup]: Starting up.");
+
   delay(3000); // 3 second delay for recovery
+
+  // Connect to wifi, as a station.
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(SSID, PASS);
+  Serial.println("connected to wifi");
+  if ((WiFi.status() == WL_CONNECTED)) {
+    WiFi.printDiag(Serial);
+  }
   
   // tell FastLED about the LED strip configuration
-  FastLED.addLeds<LED_TYPE,DATA_PIN,COLOR_ORDER>(leds, NUM_LEDS)
+  FastLED.addLeds<LED_TYPE,DATA_PIN>(leds, NUM_LEDS)
     .setCorrection(TypicalLEDStrip)
     .setDither(BRIGHTNESS < 255);
 
@@ -33,6 +59,10 @@ void setup() {
 
 void loop()
 {
+  // Create an http client in this version of the loop, collect data from
+  // remote server.
+  WiFiClient client;
+  if (!client.connect(
   pride();
   FastLED.show();  
 }
