@@ -5,6 +5,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -15,6 +16,24 @@ import (
 var (
 	port = flag.Int("port", 6789, "Port which the server listens.")
 	host = flag.String("host", "127.0.0.1", "Host/ip to listen upon.")
+
+	// colorDicates is a simple slice of colors or patterns which the
+	// fastLED library can encode to an LED entity.
+	colorDictates = []string{
+		"red",
+		"orange",
+		"yellow",
+		"green",
+		"blue",
+		"indigo",
+		"violet",
+		"rainbow",
+	}
+)
+
+const (
+	// statusTmpl is the: timestamp(nanos), dictate to which LED entities should change.
+	statusTmpl = "%d, %s\n"
 )
 
 // handler is the base struct used to handle http services.
@@ -23,14 +42,20 @@ type handler struct {
 }
 
 func newHandler(port int) (*handler, error) {
+	rand.Seed(time.Now().UnixNano())
 	return &handler{
 		port: port,
 	}, nil
 }
 
+func pickDictate() string {
+	return colorDictates[rand.Intn(len(colorDictates))]
+}
+
 // status returns the current timestamped color dictate to client LED entities.
 func (h *handler) status(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Status here: %v\n", time.Now())
+	color := pickDictate()
+	fmt.Fprintf(w, statusTmpl, time.Now().UnixNano(), color)
 }
 
 // update handles setting the current value for timestamp and color dictate.
