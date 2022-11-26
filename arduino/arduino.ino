@@ -20,7 +20,7 @@
 #define BRIGHTNESS  100
 
 const char* HOST = "mailserver.ops-netman.net";
-const char* PORT = "6789";
+const uint16 PORT = 6789;
 const char* URI = "/status";
 const char* SSID = "theaternet";
 const char* PASS = "network123";
@@ -62,9 +62,41 @@ void loop()
   // Create an http client in this version of the loop, collect data from
   // remote server.
   WiFiClient client;
-  if (!client.connect(
+  if (!client.connect(HOST, PORT)) {
+    Serial.println("Connection failed");
+    delay(5000);
+    return;
+  }
+  Serial.println("Sending request to server");
+  if (client.connected()) {
+    client.println(URI);
+  }
+  // Wait until the client returns from getting all of the data.
+  unsigned long timeout = millis();
+  while (client.available() == 0) {
+    if (millis() - timeout > 5000) {
+      Serial.println(">>> Client timeout !");
+      client.stop();
+      delay(5000);
+      return;
+    }
+  }
+
+  // Read the data from the client buffer.
+  Serial.println("Receiving data from server.");
+  while (client.available()) {
+    char ch = client.read();
+    Serial.print(ch);
+  }
+
+  // Report and close the connection.
+  Serial.println();
+  Serial.println("closing the connection");
+  client.stop();
+
   pride();
   FastLED.show();  
+  delay(5000);
 }
 
 
