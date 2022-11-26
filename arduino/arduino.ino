@@ -66,7 +66,7 @@ void loop()
   Serial.println("Starting http client request");
   http.begin(client, url.c_str());
   int httpResponseCode = http.GET();
-  if (httpResponseCode>0_ {
+  if (httpResponseCode>0) {
     Serial.print("HTTP Response Code: ");
     Serial.println(httpResponseCode);
     String payload = http.getString();
