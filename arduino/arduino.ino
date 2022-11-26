@@ -65,7 +65,6 @@ void loop()
   if (!client.connect(HOST, PORT)) {
     Serial.println("Connection failed");
     delay(5000);
-    return;
   }
   Serial.println("Sending request to server");
   if (client.connected()) {
@@ -78,7 +77,7 @@ void loop()
       Serial.println(">>> Client timeout !");
       client.stop();
       delay(5000);
-      return;
+      break;
     }
   }
 
