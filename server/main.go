@@ -54,21 +54,25 @@ func pickDictate() string {
 
 // status returns the current timestamped color dictate to client LED entities.
 func (h *handler) status(w http.ResponseWriter, r *http.Request) {
+	log.Info("Got status request")
 	color := pickDictate()
 	fmt.Fprintf(w, statusTmpl, time.Now().UnixNano(), color)
 }
 
 // update handles setting the current value for timestamp and color dictate.
 func (h *handler) update(w http.ResponseWriter, r *http.Request) {
+	log.Info("Got update request")
 	fmt.Fprintf(w, "Update message: %v\n", time.Now())
 }
 
 // index displays the selections to callers.
 func (h *handler) index(w http.ResponseWriter, r *http.Request) {
+	log.Info("Got index request")
 	fmt.Fprintf(w, "Helo World: %v\n", time.Now())
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Infof("Got request for: %v", r.URL.Path)
 	switch {
 	case strings.HasPrefix(r.URL.Path, "/update"):
 		h.update(w, r)
