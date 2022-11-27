@@ -1,6 +1,7 @@
 // Run on an ESP device, control an LED (ws2812-type) string.
 // Collect color settings to implement from an HTTP request to a hardcoded
 // URL.
+#include <string.h>
 #include <Arduino.h>
 #include "FastLED.h"
 #include <ESP8266WiFi.h>
@@ -22,6 +23,10 @@
 const char* URL = "http://mailserver.ops-netman.net:6789/status";
 const char* SSID = "theaternet";
 const char* PASS = "network123";
+// The delimiter between reply parts from the controller.
+const char* DELIMITER = ", ";
+// The current timestamp value from the previous controller reply.
+String CURRENT = "";
 
 CRGB leds[NUM_LEDS];
 
@@ -62,6 +67,8 @@ void loop()
   WiFiClient client;
   HTTPClient http;
   String url = URL;
+  // Set the default dictate to 'rainbow'.
+  String DICTATE = "rainbow";
 
   Serial.println("Starting http client request");
   http.begin(client, url.c_str());
@@ -71,11 +78,26 @@ void loop()
     Serial.println(httpResponseCode);
     String payload = http.getString();
     Serial.println(payload);
+    // Use strtok() to tokenize the http payload.
+    // First token should be the timestamp, second is the dictate.
+    String token = strtok(payload, DELIMITER);
+    if ( token != NULL ) {
+      if ( token != CURRENT) {
+        CURRENT = token;
+        token = strtok(NULL, DELIMITER);
+        if ( token != NULL ) { DICTATE = token; }
+        Serial.printf("TS: %s Dictate: %s", CURRENT, DICTATE);
+        // Display rainbow for now.
+        fill_rainbow(leds, NUM_LEDS, 0, 5);
+        FastLED.show();
+      }
+    }
+  } else {
+    // 
+    pride();
+    FastLED.show();  
   }
-
-  pride();
-  FastLED.show();  
-  delay(5000);
+    delay(5000);
 }
 
 
