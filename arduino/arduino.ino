@@ -59,7 +59,6 @@ void setup() {
   FastLED.setBrightness(BRIGHTNESS);
 }
 
-
 void loop()
 {
   // Create an http client in this version of the loop, collect data from
@@ -78,9 +77,17 @@ void loop()
     Serial.println(httpResponseCode);
     String payload = http.getString();
     Serial.println(payload);
+    // Convert payload from String to char[] and from char[] to char*.
+    int n = payload.length();
+    char p_array[n + 1];
+    strcpy(p_array, payload.c_str());
+    char* p;
+    for (int i = 0; i < n; i++) {
+      p += p_array[i];
+    }
     // Use strtok() to tokenize the http payload.
     // First token should be the timestamp, second is the dictate.
-    String token = strtok(payload, DELIMITER);
+    String token = strtok(p, DELIMITER);
     if ( token != NULL ) {
       if ( token != CURRENT) {
         CURRENT = token;
