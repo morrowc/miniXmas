@@ -33,7 +33,7 @@ CRGB leds[NUM_LEDS];
 
 void setup() {
   // Setup the serial output for console/logging.
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println();
   Serial.println();
@@ -85,6 +85,7 @@ void loop()
     for (int i = 0; i < n; i++) {
       p += p_array[i];
     }
+    free(p_array);
     // Use strtok() to tokenize the http payload.
     // First token should be the timestamp, second is the dictate.
     String token = strtok(p, DELIMITER);
