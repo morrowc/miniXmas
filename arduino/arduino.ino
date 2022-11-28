@@ -18,7 +18,7 @@
 #define LED_TYPE    NEOPIXEL
 #define COLOR_ORDER RGB
 #define NUM_LEDS    30
-#define BRIGHTNESS  100
+#define BRIGHTNESS  200
 
 const char* URL = "http://mailserver.ops-netman.net:6789/status";
 const char* SSID = "theaternet";
@@ -51,11 +51,9 @@ void setup() {
   }
   
   // tell FastLED about the LED strip configuration
-  FastLED.addLeds<LED_TYPE,DATA_PIN>(leds, NUM_LEDS)
-    .setCorrection(TypicalLEDStrip)
-    .setDither(BRIGHTNESS < 255);
-
-  // set master brightness control
+  FastLED.addLeds<LED_TYPE,DATA_PIN>(leds, NUM_LEDS);
+  FastLED.setCorrection(TypicalLEDStrip);
+  FastLED.setDither(BRIGHTNESS < 255);
   FastLED.setBrightness(BRIGHTNESS);
 }
 
@@ -69,41 +67,74 @@ void loop()
   // Set the default dictate to 'rainbow'.
   String DICTATE = "rainbow";
 
+  Serial.println();
   Serial.println("Starting http client request");
   http.begin(client, url.c_str());
   int httpResponseCode = http.GET();
   if (httpResponseCode>0) {
-    Serial.print("HTTP Response Code: ");
-    Serial.println(httpResponseCode);
+    Serial.printf("HTTP Response Code: %d\r\n", httpResponseCode);
     String payload = http.getString();
     Serial.println(payload);
     // Convert payload from String to char[] and from char[] to char*.
     int n = payload.length();
     char p_array[n + 1];
     strcpy(p_array, payload.c_str());
-    char* p;
-    for (int i = 0; i < n; i++) {
-      p += p_array[i];
-    }
-    free(p_array);
+
     // Use strtok() to tokenize the http payload.
     // First token should be the timestamp, second is the dictate.
-    String token = strtok(p, DELIMITER);
+    char *token = strtok(&p_array[0], DELIMITER);
     if ( token != NULL ) {
-      if ( token != CURRENT) {
-        CURRENT = token;
+      // Convert token to String.
+      String sToken(token);
+      if ( !sToken.equals(CURRENT) ) {
+        CURRENT = sToken;
         token = strtok(NULL, DELIMITER);
         if ( token != NULL ) { DICTATE = token; }
-        Serial.printf("TS: %s Dictate: %s", CURRENT, DICTATE);
-        // Display rainbow for now.
-        fill_rainbow(leds, NUM_LEDS, 0, 5);
-        FastLED.show();
+        DICTATE.trim();
+        Serial.printf("\nTS: %s Dictate: %s\n", CURRENT.c_str(), DICTATE);
+        Serial.println();
+        // Display single color for now.
+        // fill_rainbow(leds, NUM_LEDS, 0, 5);
+        CRGB::HTMLColorCode color;
+        if (strcmp(DICTATE.c_str(), "red") == 0 ) {
+          color = CRGB::Red;
+          Serial.println("Reset color to red");
+        } else if (strcmp(DICTATE.c_str(), "orange") == 0 ) {
+          color = CRGB::Orange;
+          Serial.println("Reset color to orange");
+        } else if (strcmp(DICTATE.c_str(), "yellow") == 0) {
+          color = CRGB::Yellow;
+          Serial.println("Reset color to yellow");
+        } else if (strcmp(DICTATE.c_str(), "green") == 0) {
+          color = CRGB::Green;
+          Serial.println("Reset color to green");
+        } else if (strcmp(DICTATE.c_str(), "blue") == 0) {
+          color = CRGB::Blue;
+          Serial.println("Reset color to blue");
+        } else if (strcmp(DICTATE.c_str(), "indigo") == 0) {
+          color = CRGB::Indigo;
+          Serial.println("Reset color to indigo");
+        } else if (strcmp(DICTATE.c_str(), "violet") == 0) {
+          color = CRGB::Violet;
+          Serial.println("Reset color to violet");
+        } else {
+          color = CRGB::Red;
+          Serial.println("Reset color to default red");
+        }
+        // blink along the light strip the new color.
+        for (int i = 0; i < NUM_LEDS ; i++ ) {
+          leds[i] = color;
+          FastLED.show();
+          delay(30);
+          leds[i] = CRGB::Black;
+        }
+        Serial.println();
       }
     }
   } else {
     // 
     pride();
-    FastLED.show();  
+    // FastLED.show();  
   }
     delay(5000);
 }
