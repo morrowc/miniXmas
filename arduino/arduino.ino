@@ -142,9 +142,9 @@ void loop()
     delay(1000);
     // FastLED.show();  
   }
+  // Delay until after the reuqired wait period between changes ocurs.
   while ( (st + millis()) < DELAY ) {
     Serial.println("delaying");
-    // delay(500);
   }
 }
 
