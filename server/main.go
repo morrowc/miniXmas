@@ -13,6 +13,10 @@ import (
 	log "github.com/golang/glog"
 )
 
+const (
+	quiet = time.Duration
+)
+
 var (
 	port = flag.Int("port", 6789, "Port which the server listens.")
 	host = flag.String("host", "127.0.0.1", "Host/ip to listen upon.")
@@ -39,7 +43,7 @@ const (
 // handler is the base struct used to handle http services.
 type handler struct {
 	dictate   string
-	timestamp int64
+	timestamp time.Time
 	port      int
 }
 
@@ -47,19 +51,28 @@ func newHandler(port int) (*handler, error) {
 	rand.Seed(time.Now().UnixNano())
 	return &handler{
 		dictate:   pickDictate(),
-		timestamp: time.Now().Nano(),
+		timestamp: time.Now(),
 		port:      port,
 	}, nil
 }
 
-func pickDictate() string {
+// updateDicate changes the dictate if there's not been a change in duration (3 seconds).
+func (h *handler) updateDictate(d time.Duration) {
+	for {
+		if h.timestamp.Since(time.Now()) > d {
+			h.dictate = h.pickDictate()
+		}
+	}
+}
+
+func (h *handler) pickDictate() string {
 	return colorDictates[rand.Intn(len(colorDictates))]
 }
 
 // status returns the current timestamped color dictate to client LED entities.
 func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got status request")
-	color := pickDictate()
+	color := h.pickDictate()
 	fmt.Fprintf(w, statusTmpl, time.Now().UnixNano(), color)
 }
 
@@ -95,6 +108,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create handler: %v", err)
 	}
+
+	// Start a goroutine that will force a change
 
 	s := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", *host, *port),
