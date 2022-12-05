@@ -38,13 +38,17 @@ const (
 
 // handler is the base struct used to handle http services.
 type handler struct {
-	port int
+	dictate   string
+	timestamp int64
+	port      int
 }
 
 func newHandler(port int) (*handler, error) {
 	rand.Seed(time.Now().UnixNano())
 	return &handler{
-		port: port,
+		dictate:   pickDictate(),
+		timestamp: time.Now().Nano(),
+		port:      port,
 	}, nil
 }
 
