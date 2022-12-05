@@ -24,7 +24,7 @@ const char* URL = "http://mailserver.ops-netman.net:6789/status";
 const char* SSID = "theaternet";
 const char* PASS = "network123";
 // Delay betwen web requests and possible change to lights.
-const unsigned long DELAY = 100;
+const unsigned long DELAY = 500;
 // The delimiter between reply parts from the controller.
 const char* DELIMITER = ", ";
 // The current timestamp value from the previous controller reply.
@@ -39,8 +39,6 @@ void setup() {
   // Setup the serial output for console/logging.
   Serial.begin(115200);
   Serial.setDebugOutput(true);
-  Serial.println();
-  Serial.println();
   Serial.println();
   Serial.println("[setup]: Starting up.");
 
@@ -63,8 +61,9 @@ void setup() {
 
 void loop()
 {
-  Serial.printf("Millis: %d\n", millis());
   int st = millis();
+  Serial.printf("Millis: %d\n", st);
+  Serial.println();
   // Create an http client in this version of the loop, collect data from
   // remote server.
   WiFiClient client;
@@ -144,6 +143,7 @@ void loop()
     // FastLED.show();  
   }
   while ( (st + millis()) < DELAY ) {
+    Serial.println("delaying");
     // delay(500);
   }
 }
