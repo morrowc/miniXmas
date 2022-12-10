@@ -256,7 +256,7 @@ func (h *handler) index(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Infof("Got request for: %v", r.URL.Path)
+	log.Infof("Got request for: %v", r.RequestURI)
 	switch {
 	case strings.HasPrefix(r.URL.Path, "/update"):
 		h.update(w, r)
