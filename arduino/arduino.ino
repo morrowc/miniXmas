@@ -14,7 +14,6 @@
 #endif
 
 #define DATA_PIN    2
-// #define CLK_PIN   4
 #define LED_TYPE    NEOPIXEL
 #define COLOR_ORDER RGB
 #define NUM_LEDS    150
@@ -74,7 +73,8 @@ void loop()
   WiFiClient client;
   HTTPClient http;
   char* url;
-  sprintf(url, "%s?leds=%d&id=%s&len=%d", URL, NUM_LEDS, ID, DELAY);
+  sprintf(url, "%s?leds=%d", URL, NUM_LEDS);
+  /*
   // Set the default dictate to 'rainbow'.
   String DICTATE = "rainbow";
 
@@ -105,8 +105,6 @@ void loop()
         token = strtok(NULL, DELIMITER);
         if ( token != NULL ) { DICTATE = token; }
         DICTATE.trim();
-        // Serial.printf("\nTS: %s Dictate: %s\n", CURRENT.c_str(), DICTATE);
-        // Serial.println();
         // Display single color for now.
         // fill_rainbow(leds, NUM_LEDS, 0, 5);
         CRGB::HTMLColorCode color;
@@ -148,6 +146,7 @@ void loop()
     delay(1000);
     // FastLED.show();  
   }
+  */
   // Delay until after the reuqired wait period between changes ocurs.
   while ( (st + millis()) < DELAY ) {
     Serial.println("delaying");
