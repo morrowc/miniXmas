@@ -180,7 +180,8 @@ var (
 		"YellowGreen":                0x9ACD32, ///< @htmlcolorblock{9ACD32}
 	}
 	// Clients is a map of mac addresses to client objects.
-	Clients = map[string]*Client{
+	// All IDs should be lowercase, use Clients.Search() to find a client by ID.
+	Clients = ClientMap{
 		"8c:aa:b5:7a:7d:13": {
 			Name:    "Test Client",
 			Loc:     TEST,
@@ -302,7 +303,7 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client, ok := Clients[id]
+	client, ok := Clients.Search(id)
 	if !ok {
 		log.Errorf("unknown client id: %s", id)
 		w.WriteHeader(http.StatusBadRequest)
@@ -349,7 +350,7 @@ func (h *handler) updateBasic(w http.ResponseWriter, r *http.Request) {
 	// Get the client id from the url.
 	id := h.reqUrlSplit[3]
 	var ok bool
-	h.client, ok = Clients[id]
+	h.client, ok = Clients.Search(id)
 	if !ok {
 		log.Errorf("unknown client id: %s", id)
 		w.WriteHeader(http.StatusBadRequest)
@@ -380,6 +381,17 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(http.StatusNotFound)
 	}
+}
+
+// ClientMap is a map of all the clients, identified by their MAC address.
+// Also contains a few useful functions for working with the map.
+type ClientMap map[string]*Client
+
+// Search searches the ClientMap for a client with the given name.
+// The name here is case-insensitive.
+func (c ClientMap) Search(name string) (*Client, bool) {
+	out, ok := c[strings.ToLower(name)]
+	return out, ok
 }
 
 func main() {
