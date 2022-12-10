@@ -208,37 +208,22 @@ type RGBColor int
 
 type location int
 
-type Client struct {
-	// Name is a user friendly name for the client
-	Name string
-	// Loc is the location of the client
-	Loc location
-	// CElem is a pointer to the array of color elements for the client
-	CElem *[]ColorElement
-	// NumLEDS is the number of LEDs in the client.
-	// Standard format is the density of the LED strip * length
-	NumLEDS int
-}
-
 // A json object to use in responding to the led strip fleet.
 // This should be scaled to the length of the light string, based on the request content.
+// Set this with c.SetColor()
 type Resp struct {
-	TS   int32          // Last update time at server.
-	Data []ColorElement // list of steps to display and color array at this step
+	TS   int64           // Last update time at server.
+	Data *[]ColorElement // list of steps to display and color array at this step
 }
 
 // As the Clients expect RGB formatted colors, you must convert to RGB before sending.
 type Colors []RGBColor
 
+// ColorElement is a single instruction in the color change.
 type ColorElement struct {
 	Steps  int     // Number of timesteps on client to display the colors.
 	Colors *Colors // color list, one per led in the string.
 }
-
-const (
-	// statusTmpl is the: timestamp(nanos), dictate to which LED entities should change.
-	statusTmpl = "%d, %s\n"
-)
 
 // handler is the base struct used to handle http services.
 type handler struct {
@@ -294,13 +279,8 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infof("Request from client: %s id: %s with stepLen: %d", client.Name, id, stepLen)
-	// Get the color json data to return.
-	colorJSON, err := json.Marshal(client.CElem)
-	if err != nil {
-		log.Errorf("failed to marshal color: %v", err)
-		return
-	}
-	fmt.Fprintf(w, statusTmpl, time.Now().UnixNano(), string(colorJSON))
+
+	fmt.Fprint(w, client.CurrentColorJSON)
 }
 
 // update handles setting the current value for timestamp and color dictate.
@@ -381,8 +361,8 @@ func (m *miniXmas) updateBasic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Pick a random color to dictate to the client.
-	m.client.CElem = m.pickDictate()
-	log.Infof("Updated client: %s id: %s with color: %v", m.client.Name, id, m.client.CElem)
+	m.client.SetColor(m.pickDictate())
+	log.Infof("Updated client: %s id: %s with color: %v", m.client.Name, id, m.client.CurrentColor.Data)
 }
 
 // ClientMap is a map of all the clients, identified by their MAC address.
@@ -394,6 +374,32 @@ type ClientMap map[string]*Client
 func (c ClientMap) Search(name string) (*Client, bool) {
 	out, ok := c[strings.ToLower(name)]
 	return out, ok
+}
+
+type Client struct {
+	// Name is a user friendly name for the client
+	Name string
+	// Loc is the location of the client
+	Loc location
+	// CurrentColor is the current color of the client
+	CurrentColor *Resp
+	// NumLEDS is the number of LEDs in the client.
+	// Standard format is the density of the LED strip * length
+	NumLEDS int
+	// CurrentColorJSON is the current color of the client marshalled into JSON format.
+	// This is exactly what is returned to the client when they request a status update.
+	CurrentColorJSON string
+}
+
+func (c Client) SetColor(cElem *[]ColorElement) {
+	c.CurrentColor.Data = cElem
+	c.CurrentColor.TS = time.Now().UnixNano()
+	jsonOut, err := json.Marshal(c.CurrentColor)
+	if err != nil {
+		log.Errorf("failed to marshal color: %v", err)
+		return
+	}
+	c.CurrentColorJSON = string(jsonOut)
 }
 
 func main() {
@@ -408,9 +414,10 @@ func main() {
 	// Define all clients to have a default color dictate.
 	// White is used to test all LEDs quickly.
 	for _, c := range Clients {
-		c.CElem = &[]ColorElement{{
+		c.SetColor(&[]ColorElement{{
 			Steps:  1,
-			Colors: returnAllOneColor(0xFFFFFF, c.NumLEDS)}}
+			Colors: returnAllOneColor(0xFFFFFF, c.NumLEDS)},
+		})
 	}
 
 	// Start a goroutine that will force a change
