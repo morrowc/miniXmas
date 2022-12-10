@@ -280,7 +280,7 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 
 	log.Infof("Request from client: %s id: %s with stepLen: %d", client.Name, id, stepLen)
 
-	fmt.Fprint(w, client.CurrentColorJSON)
+	fmt.Fprint(w, *client.CurrentColorJSON)
 }
 
 // update handles setting the current value for timestamp and color dictate.
@@ -388,10 +388,10 @@ type Client struct {
 	NumLEDS int
 	// CurrentColorJSON is the current color of the client marshalled into JSON format.
 	// This is exactly what is returned to the client when they request a status update.
-	CurrentColorJSON string
+	CurrentColorJSON *string
 }
 
-func (c Client) SetColor(cElem *[]ColorElement) {
+func (c *Client) SetColor(cElem *[]ColorElement) {
 	c.CurrentColor.Data = cElem
 	c.CurrentColor.TS = time.Now().UnixNano()
 	jsonOut, err := json.Marshal(c.CurrentColor)
@@ -399,7 +399,8 @@ func (c Client) SetColor(cElem *[]ColorElement) {
 		log.Errorf("failed to marshal color: %v", err)
 		return
 	}
-	c.CurrentColorJSON = string(jsonOut)
+	jsonOutStr := string(jsonOut)
+	c.CurrentColorJSON = &jsonOutStr
 }
 
 func main() {
