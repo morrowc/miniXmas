@@ -248,12 +248,6 @@ type handler struct {
 	port      int
 }
 
-type miniXmas struct {
-	reqUrlSplit []string
-	client      *Client
-	h           *handler
-}
-
 func newHandler(port int) (*handler, error) {
 	rand.Seed(time.Now().UnixNano())
 	colors := []string{}
@@ -267,25 +261,6 @@ func newHandler(port int) (*handler, error) {
 		colorKeys: colors,
 		port:      port,
 	}, nil
-}
-
-func returnAllOneColor(color RGBColor, numLEDS int) *Colors {
-	cs := Colors{}
-	for i := 0; i < numLEDS; i++ {
-		cs = append(cs, color)
-	}
-	return &cs
-}
-
-func (m *miniXmas) pickDictate() *[]ColorElement {
-	// Get a single color randomly from the colorDictates map.
-	color := colorDictates[m.h.colorKeys[rand.Intn(len(m.h.colorKeys))]]
-
-	return &[]ColorElement{
-		{
-			Colors: returnAllOneColor(color, m.client.NumLEDS),
-		},
-	}
 }
 
 // status returns the current timestamped color dictate to client LED entities.
@@ -349,6 +324,44 @@ func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// index displays the selections to callers.
+// Response to GET /
+func (h *handler) index(w http.ResponseWriter, r *http.Request) {
+	log.Info("Got index request")
+	fmt.Fprintf(w, "Helo World: %v\n", time.Now())
+}
+
+func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Infof("Got request for: %v", r.RequestURI)
+	switch {
+	case strings.HasPrefix(r.URL.Path, "/update"):
+		h.update(w, r)
+	case strings.HasPrefix(r.URL.Path, "/status"):
+		h.status(w, r)
+	case r.URL.Path == "/":
+		h.index(w, r)
+	default:
+		w.WriteHeader(http.StatusNotFound)
+	}
+}
+
+type miniXmas struct {
+	reqUrlSplit []string
+	client      *Client
+	h           *handler
+}
+
+func (m *miniXmas) pickDictate() *[]ColorElement {
+	// Get a single color randomly from the colorDictates map.
+	color := colorDictates[m.h.colorKeys[rand.Intn(len(m.h.colorKeys))]]
+
+	return &[]ColorElement{
+		{
+			Colors: returnAllOneColor(color, m.client.NumLEDS),
+		},
+	}
+}
+
 // updateBasic picks a random color to select from and applies it statically to the client.
 func (m *miniXmas) updateBasic(w http.ResponseWriter, r *http.Request) {
 	if len(m.reqUrlSplit) != 4 {
@@ -370,27 +383,6 @@ func (m *miniXmas) updateBasic(w http.ResponseWriter, r *http.Request) {
 	// Pick a random color to dictate to the client.
 	m.client.CElem = m.pickDictate()
 	log.Infof("Updated client: %s id: %s with color: %v", m.client.Name, id, m.client.CElem)
-}
-
-// index displays the selections to callers.
-// Response to GET /
-func (h *handler) index(w http.ResponseWriter, r *http.Request) {
-	log.Info("Got index request")
-	fmt.Fprintf(w, "Helo World: %v\n", time.Now())
-}
-
-func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Infof("Got request for: %v", r.RequestURI)
-	switch {
-	case strings.HasPrefix(r.URL.Path, "/update"):
-		h.update(w, r)
-	case strings.HasPrefix(r.URL.Path, "/status"):
-		h.status(w, r)
-	case r.URL.Path == "/":
-		h.index(w, r)
-	default:
-		w.WriteHeader(http.StatusNotFound)
-	}
 }
 
 // ClientMap is a map of all the clients, identified by their MAC address.
@@ -428,4 +420,12 @@ func main() {
 		Handler: h,
 	}
 	log.Fatal(s.ListenAndServe())
+}
+
+func returnAllOneColor(color RGBColor, numLEDS int) *Colors {
+	cs := Colors{}
+	for i := 0; i < numLEDS; i++ {
+		cs = append(cs, color)
+	}
+	return &cs
 }
