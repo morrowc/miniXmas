@@ -182,9 +182,11 @@ type resp struct {
 	data []colorElement // list of steps to display and color array at this step
 }
 
+type colors []int
+
 type colorElement struct {
-	steps  int   // Number of timesteps on client to display the colors.
-	colors []int // color list, one per led in the string.
+	steps  int    // Number of timesteps on client to display the colors.
+	colors colors // color list, one per led in the string.
 }
 
 const (
@@ -203,7 +205,7 @@ type handler struct {
 func newHandler(port int) (*handler, error) {
 	rand.Seed(time.Now().UnixNano())
 	colors := []string{}
-	for c, v := range colorDictates {
+	for c, _ := range colorDictates {
 		colors = append(colors, c)
 	}
 
