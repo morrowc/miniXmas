@@ -17,6 +17,10 @@ import (
 
 const (
 	ledCont = 5000
+
+	// List of locations with to organize their clients
+	GUTTER = 0
+	TEST   = 1
 )
 
 var (
@@ -175,7 +179,35 @@ var (
 		"Yellow":                     0xFFFF00, ///< @htmlcolorblock{FFFF00}
 		"YellowGreen":                0x9ACD32, ///< @htmlcolorblock{9ACD32}
 	}
+	// Clients is a map of mac addresses to client objects.
+	Clients = map[string]Client{
+		"8c:aa:b5:7a:7d:13": {
+			Name: "Test Client",
+			Loc:  TEST,
+		},
+		// Placeholder MAC address for the gutter towards the kitchen
+		"8c:aa:b5:7a:7d:14": {
+			Name: "Gutter Kitchen",
+			Loc:  GUTTER,
+		},
+		// Placeholder MAC address for the gutter towards the TV room
+		"8c:aa:b5:7a:7d:15": {
+			Name: "Gutter TV Room",
+			Loc:  GUTTER,
+		},
+	}
 )
+
+type location int
+
+type Client struct {
+	// Name is a user friendly name for the client
+	Name string
+	// Loc is the location of the client
+	Loc location
+	// CElem is a pointer to the array of color elements for the client
+	CElem *[]ColorElement
+}
 
 // A json object to use in responding to the led strip fleet.
 // This should be scaled to the length of the light string, based on the request content.
@@ -237,10 +269,12 @@ func (h *handler) pickDictate(l int) Resp {
 }
 
 // status returns the current timestamped color dictate to client LED entities.
+// Response to GET /status
 func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got status request")
 	// Get the led count from the request.
 	ledStr := r.URL.Query().Get("leds")
+	// id is the MAC address of the client.
 	id := r.URL.Query().Get("id")
 	stepLenStr := r.URL.Query().Get("len")
 	leds, err := strconv.Atoi(ledStr)
@@ -248,6 +282,7 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("failed to parse ledStr(%s) to int: %v", ledStr, err)
 		return
 	}
+	// stepLen is the length of time per step in ms.
 	stepLen, err := strconv.Atoi(stepLenStr)
 	if err != nil {
 		log.Errorf("failed to parse stepLenStr(%s) to int: %v", stepLenStr, err)
@@ -266,6 +301,7 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 }
 
 // update handles setting the current value for timestamp and color dictate.
+// Response to POST /update
 func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got update request")
 	fmt.Fprintf(w, "Update message: %v\n", time.Now())
