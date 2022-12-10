@@ -17,10 +17,10 @@
 // #define CLK_PIN   4
 #define LED_TYPE    NEOPIXEL
 #define COLOR_ORDER RGB
-#define NUM_LEDS    30
+#define NUM_LEDS    150
 #define BRIGHTNESS  200
 
-const char* URL = "http://mailserver.ops-netman.net:6789/status";
+const char* URL = "http://mailserver.ops-netman.net:6789/status?leds=";
 const char* SSID = "theaternet";
 const char* PASS = "network123";
 // Delay betwen web requests and possible change to lights.
@@ -68,13 +68,14 @@ void loop()
   // remote server.
   WiFiClient client;
   HTTPClient http;
-  String url = URL;
+  char* url;
+  sprintf(url, "%s/%d", URL, NUM_LEDS);
   // Set the default dictate to 'rainbow'.
   String DICTATE = "rainbow";
 
   // Serial.println();
   // Serial.println("Starting http client request");
-  http.begin(client, url.c_str());
+  http.begin(client, url);
   int httpResponseCode = http.GET();
   if (httpResponseCode>0) {
     // Serial.printf("HTTP Response Code: %d\r\n", httpResponseCode);
