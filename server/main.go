@@ -415,6 +415,7 @@ func main() {
 	// Define all clients to have a default color dictate.
 	// White is used to test all LEDs quickly.
 	for _, c := range Clients {
+		c.CurrentColor = &Resp{}
 		c.SetColor(&[]ColorElement{{
 			Steps:  1,
 			Colors: returnAllOneColor(0xFFFFFF, c.NumLEDS)},
