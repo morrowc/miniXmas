@@ -272,6 +272,7 @@ func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 }
 
 // index displays the selections to callers.
+// Response to GET /
 func (h *handler) index(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got index request")
 	fmt.Fprintf(w, "Helo World: %v\n", time.Now())
@@ -284,8 +285,10 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.update(w, r)
 	case strings.HasPrefix(r.URL.Path, "/status"):
 		h.status(w, r)
-	default:
+	case r.URL.Path == "/":
 		h.index(w, r)
+	default:
+		w.WriteHeader(http.StatusNotFound)
 	}
 }
 
