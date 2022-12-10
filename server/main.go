@@ -334,7 +334,8 @@ func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got update request")
 	fmt.Fprintf(w, "Update message: %v\n", time.Now())
 	m := &miniXmas{
-		reqUrlSplit: strings.Split(r.URL.Path, "/")}
+		reqUrlSplit: strings.Split(r.URL.Path, "/"),
+		h:           h}
 	if len(m.reqUrlSplit) < 3 {
 		log.Errorf("invalid url: %s", r.URL.Path)
 		w.WriteHeader(http.StatusBadRequest)
