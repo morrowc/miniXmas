@@ -231,8 +231,8 @@ type Resp struct {
 type Colors []RGBColor
 
 type ColorElement struct {
-	Steps  int    // Number of timesteps on client to display the colors.
-	Colors Colors // color list, one per led in the string.
+	Steps  int     // Number of timesteps on client to display the colors.
+	Colors *Colors // color list, one per led in the string.
 }
 
 const (
@@ -265,17 +265,21 @@ func newHandler(port int) (*handler, error) {
 	}, nil
 }
 
-func (h *handler) pickDictate(l int) *[]ColorElement {
-	// Get a single color randomly from the colorDictates map.
-	color := colorDictates[h.colorKeys[rand.Intn(len(h.colorKeys))]]
-	cs := []RGBColor{}
-	for i := 0; i < l; i++ {
+func returnAllOneColor(color RGBColor, numLEDS int) *Colors {
+	cs := Colors{}
+	for i := 0; i < numLEDS; i++ {
 		cs = append(cs, color)
 	}
+	return &cs
+}
+
+func (h *handler) pickDictate() *[]ColorElement {
+	// Get a single color randomly from the colorDictates map.
+	color := colorDictates[h.colorKeys[rand.Intn(len(h.colorKeys))]]
 
 	return &[]ColorElement{
 		{
-			Colors: cs,
+			Colors: returnAllOneColor(color, h.client.NumLEDS),
 		},
 	}
 }
@@ -358,7 +362,7 @@ func (h *handler) updateBasic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Pick a random color to dictate to the client.
-	h.client.CElem = h.pickDictate(h.client.NumLEDS)
+	h.client.CElem = h.pickDictate()
 	log.Infof("Updated client: %s id: %s with color: %v", h.client.Name, id, h.client.CElem)
 }
 
@@ -401,6 +405,14 @@ func main() {
 	h, err := newHandler(*port)
 	if err != nil {
 		log.Fatalf("failed to create handler: %v", err)
+	}
+
+	// Define all clients to have a default color dictate.
+	// White is used to test all LEDs quickly.
+	for _, c := range Clients {
+		c.CElem = &[]ColorElement{{
+			Steps:  1,
+			Colors: returnAllOneColor(0xFFFFFF, c.NumLEDS)}}
 	}
 
 	// Start a goroutine that will force a change
