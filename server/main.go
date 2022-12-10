@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -194,7 +195,7 @@ const (
 
 // handler is the base struct used to handle http services.
 type handler struct {
-	dictate   colors
+	dictate   resp
 	colorKeys []string
 	timestamp time.Time
 	port      int
@@ -203,41 +204,54 @@ type handler struct {
 func newHandler(port int) (*handler, error) {
 	rand.Seed(time.Now().UnixNano())
 	colors := []string{}
-	for c, v := range colorDictates {
+	for c, _ := range colorDictates {
 		colors = append(colors, c)
 	}
 
 	return &handler{
-		dictate:   pickDictate(ledCount),
+		dictate:   resp{},
 		timestamp: time.Now(),
 		colorKeys: colors,
 		port:      port,
 	}, nil
 }
 
-func (h *handler) updateDictate(d time.Duration) {
-	for {
-		if h.timestamp.Since(time.Now()) > d {
-			h.dictate = h.pickDictate(ledCount)
-		}
+func (h *handler) pickDictate(l int) resp {
+	// Get a single color randomly from the colorDictates map.
+	color := colorDictates[h.colorKeys[rand.Intn(len(h.colorKeys))]]
+	cs := []int{}
+	for i := 0; i < l; i++ {
+		cs = append(cs, color)
 	}
-}
 
-func (h *handler) pickDictate(l int) []colors {
-	// Get the color keys
-	color := colorDictates[rand.Intn(len(colors))]
-
-	return colorDictates[rand.Intn(len(colorDictates))]
+	return resp{
+		data: []colorElement{
+			colorElement{
+				colors: cs,
+			},
+		},
+	}
 }
 
 // status returns the current timestamped color dictate to client LED entities.
 func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got status request")
 	// Get the led count from the request.
-	leds := r.URL.Query().Get("leds")
+	ledStr := r.URL.Query().Get("leds")
 	id := r.URL.Query().Get("id")
-	stepLen := r.URL.Query().Get("len")
+	stepLenStr := r.URL.Query().Get("len")
+	leds, err := strconv.Atoi(ledStr)
+	if err != nil {
+		log.Errorf("failed to parse ledStr(%s) to int: %v", ledStr, err)
+		return
+	}
+	stepLen, err := strconv.Atoi(stepLenStr)
+	if err != nil {
+		log.Errorf("failed to parse stepLenStr(%s) to int: %v", stepLenStr, err)
+		return
+	}
 
+	log.Infof("Request from id: %s with stepLen: %d", id, stepLen)
 	// Get the color json data to return.
 	color := h.pickDictate(leds)
 	fmt.Fprintf(w, statusTmpl, time.Now().UnixNano(), color)
