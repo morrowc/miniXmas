@@ -48,6 +48,7 @@ void setup() {
   // Connect to wifi, as a station.
   WiFi.mode(WIFI_STA);
   WiFi.begin(SSID, PASS);
+  delay(5000); // 5 second delay for recovery
   Serial.println("connected to wifi");
   if ((WiFi.status() == WL_CONNECTED)) {
     WiFi.printDiag(Serial);
@@ -72,15 +73,12 @@ void loop()
   // remote server.
   WiFiClient client;
   HTTPClient http;
-  char* url = "";
+  char url[strlen(URL)+50];
   sprintf(url, "%s?id=%s&leds=%d&len=%d", URL, ID.c_str(), NUM_LEDS, DELAY);
-  Serial.printf("New Millis: %d\n", st);
-  /*
+
   // Set the default dictate to 'rainbow'.
   String DICTATE = "rainbow";
 
-  // Serial.println();
-  // Serial.println("Starting http client request");
   http.begin(client, url);
   int httpResponseCode = http.GET();
   if (httpResponseCode>0) {
@@ -143,15 +141,13 @@ void loop()
     }
   } else {
     // 
+    Serial.println("failed to make http request");
     pride();
     delay(1000);
     // FastLED.show();  
   }
-  */
   // Delay until after the reuqired wait period between changes ocurs.
-  while ( (st + millis()) < DELAY ) {
-    Serial.println("delaying");
-  }
+  while ( (millis() - st) < DELAY ) {}
 }
 
 
