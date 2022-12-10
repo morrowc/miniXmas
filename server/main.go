@@ -29,7 +29,7 @@ var (
 
 	// colorDicates is a simple slice of colors or patterns which the
 	// fastLED library can encode to an LED entity.
-	colorDictates = map[string]int{
+	colorDictates = map[string]RGBColor{
 		"AliceBlue":                  0xF0F8FF, ///< @htmlcolorblock{F0F8FF}
 		"Amethyst":                   0x9966CC, ///< @htmlcolorblock{9966CC}
 		"AntiqueWhite":               0xFAEBD7, ///< @htmlcolorblock{FAEBD7}
@@ -180,7 +180,7 @@ var (
 		"YellowGreen":                0x9ACD32, ///< @htmlcolorblock{9ACD32}
 	}
 	// Clients is a map of mac addresses to client objects.
-	Clients = map[string]Client{
+	Clients = map[string]*Client{
 		"8c:aa:b5:7a:7d:13": {
 			Name:    "Test Client",
 			Loc:     TEST,
@@ -200,6 +200,10 @@ var (
 		},
 	}
 )
+
+// RGBColor is an int representing a color in RGB format.
+// Example: 0x00FF00 is green.
+type RGBColor int
 
 type location int
 
@@ -222,7 +226,8 @@ type Resp struct {
 	Data []ColorElement // list of steps to display and color array at this step
 }
 
-type Colors []int
+// As the Clients expect RGB formatted colors, you must convert to RGB before sending.
+type Colors []RGBColor
 
 type ColorElement struct {
 	Steps  int    // Number of timesteps on client to display the colors.
@@ -236,10 +241,12 @@ const (
 
 // handler is the base struct used to handle http services.
 type handler struct {
-	dictate   Resp
-	colorKeys []string
-	timestamp time.Time
-	port      int
+	dictate     Resp
+	colorKeys   []string
+	timestamp   time.Time
+	port        int
+	reqUrlSplit []string
+	client      *Client
 }
 
 func newHandler(port int) (*handler, error) {
@@ -257,19 +264,17 @@ func newHandler(port int) (*handler, error) {
 	}, nil
 }
 
-func (h *handler) pickDictate(l int) Resp {
+func (h *handler) pickDictate(l int) *[]ColorElement {
 	// Get a single color randomly from the colorDictates map.
 	color := colorDictates[h.colorKeys[rand.Intn(len(h.colorKeys))]]
-	cs := []int{}
+	cs := []RGBColor{}
 	for i := 0; i < l; i++ {
 		cs = append(cs, color)
 	}
 
-	return Resp{
-		Data: []ColorElement{
-			{
-				Colors: cs,
-			},
+	return &[]ColorElement{
+		{
+			Colors: cs,
 		},
 	}
 }
@@ -319,6 +324,41 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got update request")
 	fmt.Fprintf(w, "Update message: %v\n", time.Now())
+	h.reqUrlSplit = strings.Split(r.URL.Path, "/")
+	if len(h.reqUrlSplit) < 3 {
+		log.Errorf("invalid url: %s", r.URL.Path)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// switch on the second part of the url to determine the update type.
+	switch h.reqUrlSplit[2] {
+	case "basic":
+		h.updateBasic(w, r)
+	}
+}
+
+// updateBasic picks a random color to select from and applies it statically to the client.
+func (h *handler) updateBasic(w http.ResponseWriter, r *http.Request) {
+	if len(h.reqUrlSplit) != 4 {
+		log.Errorf("invalid url: %s", r.URL.Path)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Get the client id from the url.
+	id := h.reqUrlSplit[3]
+	var ok bool
+	h.client, ok = Clients[id]
+	if !ok {
+		log.Errorf("unknown client id: %s", id)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Pick a random color to dictate to the client.
+	h.client.CElem = h.pickDictate(h.client.NumLEDS)
+	log.Infof("Updated client: %s id: %s with color: %v", h.client.Name, id, h.client.CElem)
 }
 
 // index displays the selections to callers.
