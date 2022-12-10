@@ -73,7 +73,7 @@ void loop()
   WiFiClient client;
   HTTPClient http;
   char* url;
-  sprintf(url, "%s?leds=%d", URL, NUM_LEDS);
+  sprintf(url, "%s", URL);
   /*
   // Set the default dictate to 'rainbow'.
   String DICTATE = "rainbow";
