@@ -242,12 +242,16 @@ const (
 
 // handler is the base struct used to handle http services.
 type handler struct {
-	dictate     Resp
-	colorKeys   []string
-	timestamp   time.Time
-	port        int
+	dictate   Resp
+	colorKeys []string
+	timestamp time.Time
+	port      int
+}
+
+type miniXmas struct {
 	reqUrlSplit []string
 	client      *Client
+	h           *handler
 }
 
 func newHandler(port int) (*handler, error) {
@@ -273,13 +277,13 @@ func returnAllOneColor(color RGBColor, numLEDS int) *Colors {
 	return &cs
 }
 
-func (h *handler) pickDictate() *[]ColorElement {
+func (m *miniXmas) pickDictate() *[]ColorElement {
 	// Get a single color randomly from the colorDictates map.
-	color := colorDictates[h.colorKeys[rand.Intn(len(h.colorKeys))]]
+	color := colorDictates[m.h.colorKeys[rand.Intn(len(m.h.colorKeys))]]
 
 	return &[]ColorElement{
 		{
-			Colors: returnAllOneColor(color, h.client.NumLEDS),
+			Colors: returnAllOneColor(color, m.client.NumLEDS),
 		},
 	}
 }
@@ -329,32 +333,33 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got update request")
 	fmt.Fprintf(w, "Update message: %v\n", time.Now())
-	h.reqUrlSplit = strings.Split(r.URL.Path, "/")
-	if len(h.reqUrlSplit) < 3 {
+	m := &miniXmas{
+		reqUrlSplit: strings.Split(r.URL.Path, "/")}
+	if len(m.reqUrlSplit) < 3 {
 		log.Errorf("invalid url: %s", r.URL.Path)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	// switch on the second part of the url to determine the update type.
-	switch h.reqUrlSplit[2] {
+	switch m.reqUrlSplit[2] {
 	case "basic":
-		h.updateBasic(w, r)
+		m.updateBasic(w, r)
 	}
 }
 
 // updateBasic picks a random color to select from and applies it statically to the client.
-func (h *handler) updateBasic(w http.ResponseWriter, r *http.Request) {
-	if len(h.reqUrlSplit) != 4 {
+func (m *miniXmas) updateBasic(w http.ResponseWriter, r *http.Request) {
+	if len(m.reqUrlSplit) != 4 {
 		log.Errorf("invalid url: %s", r.URL.Path)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	// Get the client id from the url.
-	id := h.reqUrlSplit[3]
+	id := m.reqUrlSplit[3]
 	var ok bool
-	h.client, ok = Clients.Search(id)
+	m.client, ok = Clients.Search(id)
 	if !ok {
 		log.Errorf("unknown client id: %s", id)
 		w.WriteHeader(http.StatusBadRequest)
@@ -362,8 +367,8 @@ func (h *handler) updateBasic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Pick a random color to dictate to the client.
-	h.client.CElem = h.pickDictate()
-	log.Infof("Updated client: %s id: %s with color: %v", h.client.Name, id, h.client.CElem)
+	m.client.CElem = m.pickDictate()
+	log.Infof("Updated client: %s id: %s with color: %v", m.client.Name, id, m.client.CElem)
 }
 
 // index displays the selections to callers.
