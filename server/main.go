@@ -236,6 +236,9 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got status request")
 	// Get the led count from the request.
 	leds := r.URL.Query().Get("leds")
+	id := r.URL.Query().Get("id")
+	stepLen := r.URL.Query().Get("len")
+
 	// Get the color json data to return.
 	color := h.pickDictate(leds)
 	fmt.Fprintf(w, statusTmpl, time.Now().UnixNano(), color)
