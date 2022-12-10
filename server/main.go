@@ -182,18 +182,21 @@ var (
 	// Clients is a map of mac addresses to client objects.
 	Clients = map[string]Client{
 		"8c:aa:b5:7a:7d:13": {
-			Name: "Test Client",
-			Loc:  TEST,
+			Name:    "Test Client",
+			Loc:     TEST,
+			NumLEDS: 30 * 5,
 		},
 		// Placeholder MAC address for the gutter towards the kitchen
 		"8c:aa:b5:7a:7d:14": {
-			Name: "Gutter Kitchen",
-			Loc:  GUTTER,
+			Name:    "Gutter Kitchen",
+			Loc:     GUTTER,
+			NumLEDS: 30 * 5,
 		},
 		// Placeholder MAC address for the gutter towards the TV room
 		"8c:aa:b5:7a:7d:15": {
-			Name: "Gutter TV Room",
-			Loc:  GUTTER,
+			Name:    "Gutter TV Room",
+			Loc:     GUTTER,
+			NumLEDS: 30 * 5,
 		},
 	}
 )
@@ -207,6 +210,9 @@ type Client struct {
 	Loc location
 	// CElem is a pointer to the array of color elements for the client
 	CElem *[]ColorElement
+	// NumLEDS is the number of LEDs in the client.
+	// Standard format is the density of the LED strip * length
+	NumLEDS int
 }
 
 // A json object to use in responding to the led strip fleet.
@@ -272,16 +278,18 @@ func (h *handler) pickDictate(l int) Resp {
 // Response to GET /status
 func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got status request")
-	// Get the led count from the request.
-	ledStr := r.URL.Query().Get("leds")
+
+	// Process the variables from the request.
+	// Get the led count from the request. (Not required anymore)
+	//ledStr := r.URL.Query().Get("leds")
 	// id is the MAC address of the client.
 	id := r.URL.Query().Get("id")
 	stepLenStr := r.URL.Query().Get("len")
-	leds, err := strconv.Atoi(ledStr)
-	if err != nil {
-		log.Errorf("failed to parse ledStr(%s) to int: %v", ledStr, err)
-		return
-	}
+	//leds, err := strconv.Atoi(ledStr)
+	//if err != nil {
+	//	log.Errorf("failed to parse ledStr(%s) to int: %v", ledStr, err)
+	//	return
+	//}
 	// stepLen is the length of time per step in ms.
 	stepLen, err := strconv.Atoi(stepLenStr)
 	if err != nil {
@@ -289,10 +297,16 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Infof("Request from id: %s with stepLen: %d", id, stepLen)
+	client, ok := Clients[id]
+	if !ok {
+		log.Errorf("unknown client id: %s", id)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	log.Infof("Request from client: %s id: %s with stepLen: %d", client.Name, id, stepLen)
 	// Get the color json data to return.
-	color := h.pickDictate(leds)
-	colorJSON, err := json.Marshal(&color)
+	colorJSON, err := json.Marshal(client.CElem)
 	if err != nil {
 		log.Errorf("failed to marshal color: %v", err)
 		return
