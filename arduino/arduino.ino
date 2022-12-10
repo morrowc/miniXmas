@@ -55,6 +55,7 @@ void setup() {
   
   // Set the ID/mac-addr.
   ID = WiFi.macAddress();
+  const char* IDStr = String(ID).c_str();
 
   // tell FastLED about the LED strip configuration
   FastLED.addLeds<LED_TYPE,DATA_PIN>(leds, NUM_LEDS);
@@ -72,8 +73,9 @@ void loop()
   // remote server.
   WiFiClient client;
   HTTPClient http;
-  char* url;
-  sprintf(url, "%s", URL);
+  char* url = "";
+  sprintf(url, "%s?id=%s&leds=%d&len=%d", URL, IDStr, NUM_LEDS, DELAY);
+  Serial.printf("New Millis: %d\n", st);
   /*
   // Set the default dictate to 'rainbow'.
   String DICTATE = "rainbow";
