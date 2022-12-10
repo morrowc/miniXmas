@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	quiet   = time.Duration
 	ledCont = 5000
 )
 
