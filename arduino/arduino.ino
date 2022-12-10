@@ -20,15 +20,17 @@
 #define NUM_LEDS    150
 #define BRIGHTNESS  200
 
-const char* URL = "http://mailserver.ops-netman.net:6789/status?leds=";
+const char* URL = "http://mailserver.ops-netman.net:6789/status";
 const char* SSID = "theaternet";
 const char* PASS = "network123";
 // Delay betwen web requests and possible change to lights.
-const unsigned long DELAY = 500;
+const unsigned long DELAY = 100;
 // The delimiter between reply parts from the controller.
 const char* DELIMITER = ", ";
 // The current timestamp value from the previous controller reply.
 String CURRENT = "";
+// The ID of this board, it's MacAddress.
+String ID = "";
 
 CRGB leds[NUM_LEDS];
 unsigned long TOTAL_INTERVALS = 0;
@@ -52,6 +54,9 @@ void setup() {
     WiFi.printDiag(Serial);
   }
   
+  // Set the ID/mac-addr.
+  ID = WiFi.macAddress();
+
   // tell FastLED about the LED strip configuration
   FastLED.addLeds<LED_TYPE,DATA_PIN>(leds, NUM_LEDS);
   FastLED.setCorrection(TypicalLEDStrip);
@@ -69,7 +74,7 @@ void loop()
   WiFiClient client;
   HTTPClient http;
   char* url;
-  sprintf(url, "%s/%d", URL, NUM_LEDS);
+  sprintf(url, "%s?leds=%d&id=%s&len=%d", URL, NUM_LEDS, ID, DELAY);
   // Set the default dictate to 'rainbow'.
   String DICTATE = "rainbow";
 
