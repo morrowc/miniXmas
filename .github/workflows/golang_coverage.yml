@@ -1,0 +1,48 @@
+name: "GoCoverage"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches: [ "main" ]
+
+jobs:
+
+  build:
+      runs-on: ubuntu-latest
+      steps:
+            - uses: actions/checkout@v3
+
+            - name: Set up Go >1.16
+              uses: actions/setup-go@v3
+              with:
+                go-version: '>=1.16.0'
+
+            - run go version
+
+            - name: Get Dependencies
+              run: |
+                go get -v -t -d ./...
+                if [ -f Gopkg.toml ]; then
+                    curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+                    dep ensure
+                fi
+
+            - name: Test
+              run: go test ./...
+            - name: TestCoverage
+              run: go test -v -coverprofile=coverage.out -covermode=count ./... ; sed -i "s/$(pwd|sed 's/\//\\\//g')/./g" coverage.out
+
+            - name: ConvertCoverage
+              uses: jandelgado/gcov2lcov-action@v1.0.0
+              with:
+                infile: coverage.out
+                outfile: coverage.lcov
+
+            - name: Coveralls Github Action
+              uses: coverallsapp/github-action@v1.0.1
+              with:
+                github-token: ${{ secrets.github_token }}
+                path-to-lcov: ./coverage.lcov
+
