@@ -217,6 +217,7 @@ func clientIdleUpdate(t time.Duration, c map[string]*Client) {
 	for {
 		for _, client := range c {
 			if time.Now().UnixNano()-client.CurrentColor.TS > t.Nanoseconds() {
+				log.Infof("Setting new color for client: %s", client.Name)
 				client.SetColor(client.CurrentColor.Data)
 			}
 		}
