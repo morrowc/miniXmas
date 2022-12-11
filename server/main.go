@@ -417,7 +417,9 @@ func (m *miniXmas) updateBasic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Pick a random color to dictate to the client.
-	m.client.SetColor(m.pickDictate())
+	if err := m.client.SetColor(m.pickDictate()); err != nil {
+		fmt.Errorf("failed to SetColor for client: %s: %v", m.client.Name, err)
+	}
 	log.Infof("Updated client: %s id: %s with color: %v", m.client.Name, id, m.client.CurrentColor.Data)
 }
 
