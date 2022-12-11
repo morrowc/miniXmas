@@ -21,6 +21,9 @@ const (
 	// List of locations with to organize their clients
 	GUTTER = 0
 	TEST   = 1
+
+	// Period of time between stagnant light coloration.
+	idleTime = 60 * time.Second
 )
 
 var (
@@ -179,28 +182,73 @@ var (
 		"Yellow":                     0xFFFF00, ///< @htmlcolorblock{FFFF00}
 		"YellowGreen":                0x9ACD32, ///< @htmlcolorblock{9ACD32}
 	}
+
 	// Clients is a map of mac addresses to client objects.
 	// All IDs should be lowercase, use Clients.Search() to find a client by ID.
-	Clients = ClientMap{
-		"8c:aa:b5:7a:7d:13": {
+	Clients = map[string]*Client{
+		"8c:aa:b5:7a:7d:13": &Client{
 			Name:    "Test Client",
 			Loc:     TEST,
 			NumLEDS: 30 * 5,
 		},
 		// Placeholder MAC address for the gutter towards the kitchen
-		"8c:aa:b5:7a:bc:ad": {
+		"8c:aa:b5:7a:bc:ad": &Client{
 			Name:    "Gutter Kitchen",
 			Loc:     GUTTER,
 			NumLEDS: 30 * 5,
 		},
 		// Placeholder MAC address for the gutter towards the TV room
-		"8c:aa:b5:7a:7d:15": {
+		"8c:aa:b5:7a:7d:15": &Client{
 			Name:    "Gutter TV Room",
 			Loc:     GUTTER,
 			NumLEDS: 30 * 5,
 		},
 	}
 )
+
+// Search searches the ClientMap for a client with the given name.
+// The name here is case-insensitive.
+func clientSearch(name string, c map[string]*Client) (*Client, bool) {
+	out, ok := c[strings.ToLower(name)]
+	return out, ok
+}
+
+func clientIdleUpdate(t time.Duration, c map[string]*Client) {
+	for {
+		for _, client := range c {
+			if time.Now().UnixNano()-client.CurrentColor.TS > t.Nanoseconds() {
+				client.SetColor(client.CurrentColor.Data)
+			}
+		}
+	}
+}
+
+type Client struct {
+	// Name is a user friendly name for the client
+	Name string
+	// Loc is the location of the client
+	Loc location
+	// CurrentColor is the current color of the client
+	CurrentColor *Resp
+	// NumLEDS is the number of LEDs in the client.
+	// Standard format is the density of the LED strip * length
+	NumLEDS int
+	// CurrentColorJSON is the current color of the client marshalled into JSON format.
+	// This is exactly what is returned to the client when they request a status update.
+	CurrentColorJSON *string
+}
+
+func (c *Client) SetColor(cElem *[]ColorElement) {
+	c.CurrentColor.Data = cElem
+	c.CurrentColor.TS = time.Now().UnixNano()
+	jsonOut, err := json.Marshal(c.CurrentColor)
+	if err != nil {
+		log.Errorf("failed to marshal color: %v", err)
+		return
+	}
+	jsonOutStr := string(jsonOut)
+	c.CurrentColorJSON = &jsonOutStr
+}
 
 // RGBColor is an int representing a color in RGB format.
 // Example: 0x00FF00 is green.
@@ -231,6 +279,7 @@ type handler struct {
 	colorKeys []string
 	timestamp time.Time
 	port      int
+	clients   map[string]*Client
 }
 
 func newHandler(port int) (*handler, error) {
@@ -245,6 +294,7 @@ func newHandler(port int) (*handler, error) {
 		timestamp: time.Now(),
 		colorKeys: colors,
 		port:      port,
+		clients:   Clients,
 	}, nil
 }
 
@@ -271,7 +321,7 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client, ok := Clients.Search(id)
+	client, ok := clientSearch(id, h.clients)
 	if !ok {
 		log.Errorf("unknown client id: %s", id)
 		w.WriteHeader(http.StatusBadRequest)
@@ -288,9 +338,12 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got update request")
 	fmt.Fprintf(w, "Update message: %v\n", time.Now())
+
 	m := &miniXmas{
 		reqUrlSplit: strings.Split(r.URL.Path, "/"),
-		h:           h}
+		h:           h,
+	}
+
 	if len(m.reqUrlSplit) < 3 {
 		log.Errorf("invalid url: %s", r.URL.Path)
 		w.WriteHeader(http.StatusBadRequest)
@@ -353,7 +406,7 @@ func (m *miniXmas) updateBasic(w http.ResponseWriter, r *http.Request) {
 	// Get the client id from the url.
 	id := m.reqUrlSplit[3]
 	var ok bool
-	m.client, ok = Clients.Search(id)
+	m.client, ok = clientSearch(id, m.h.clients)
 	if !ok {
 		log.Errorf("unknown client id: %s", id)
 		w.WriteHeader(http.StatusBadRequest)
@@ -363,44 +416,6 @@ func (m *miniXmas) updateBasic(w http.ResponseWriter, r *http.Request) {
 	// Pick a random color to dictate to the client.
 	m.client.SetColor(m.pickDictate())
 	log.Infof("Updated client: %s id: %s with color: %v", m.client.Name, id, m.client.CurrentColor.Data)
-}
-
-// ClientMap is a map of all the clients, identified by their MAC address.
-// Also contains a few useful functions for working with the map.
-type ClientMap map[string]*Client
-
-// Search searches the ClientMap for a client with the given name.
-// The name here is case-insensitive.
-func (c ClientMap) Search(name string) (*Client, bool) {
-	out, ok := c[strings.ToLower(name)]
-	return out, ok
-}
-
-type Client struct {
-	// Name is a user friendly name for the client
-	Name string
-	// Loc is the location of the client
-	Loc location
-	// CurrentColor is the current color of the client
-	CurrentColor *Resp
-	// NumLEDS is the number of LEDs in the client.
-	// Standard format is the density of the LED strip * length
-	NumLEDS int
-	// CurrentColorJSON is the current color of the client marshalled into JSON format.
-	// This is exactly what is returned to the client when they request a status update.
-	CurrentColorJSON *string
-}
-
-func (c *Client) SetColor(cElem *[]ColorElement) {
-	c.CurrentColor.Data = cElem
-	c.CurrentColor.TS = time.Now().UnixNano()
-	jsonOut, err := json.Marshal(c.CurrentColor)
-	if err != nil {
-		log.Errorf("failed to marshal color: %v", err)
-		return
-	}
-	jsonOutStr := string(jsonOut)
-	c.CurrentColorJSON = &jsonOutStr
 }
 
 func main() {
@@ -421,6 +436,8 @@ func main() {
 			Colors: returnAllOneColor(0xFFFFFF, c.NumLEDS)},
 		})
 	}
+
+	go clientIdleUpdate(idleTime, Clients)
 
 	// Start a goroutine that will force a change
 
