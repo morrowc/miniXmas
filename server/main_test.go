@@ -69,25 +69,82 @@ func TestUpdate(t *testing.T) {
 		wantPrefix: "success SetColor",
 		wantCode:   http.StatusOK,
 	}, {
-		desc:       "/update too few slashes.",
-		reqStr:     "/update",
-		wantPrefix: "",
+		desc:     "/update too few slashes.",
+		reqStr:   "/update",
+		wantCode: http.StatusBadRequest,
+	}, {
+		desc:     "/update/basic too few slashes.",
+		reqStr:   "/update/basic",
+		wantCode: http.StatusBadRequest,
+	}, {
+		desc:     "/update/basic too many slashes.",
+		reqStr:   "/update/basic/things/to/do/C8:AA:B5:7A:BC:DA",
+		wantCode: http.StatusBadRequest,
+	}, {
+		desc:     "/update/basic unknown station",
+		reqStr:   "/update/basic/C8:AA:B5:7A:BC:DA",
+		wantCode: http.StatusBadRequest,
+	}}
+
+	for _, test := range tests {
+		// Fake request for anything update/basic
+		req, err := http.NewRequest("GET", test.reqStr, nil)
+		if err != nil {
+			t.Fatalf("[%v]: failed to setup request: %v", test.desc, err)
+		}
+
+		// Init client content, so to avoid panic.
+		initClients()
+
+		// ResponseRecorer, satisfy http.ResponseWriter to record the response.
+		rr := httptest.NewRecorder()
+		h, err := newHandler(9999)
+		if err != nil {
+			t.Fatalf("[%v]: failed to create handler: %v", test.desc, err)
+		}
+		// Call serve on the handler.
+		h.ServeHTTP(rr, req)
+
+		// Check status code is expected.
+		if status := rr.Code; status != test.wantCode {
+			t.Errorf("[%v]: handler returned wrong status code: got %v want %v",
+				test.desc, status, test.wantCode)
+		}
+
+		// Validate that the start of the reply is as expected, only if the request was ok.
+		if rr.Code == http.StatusOK {
+			if !strings.HasPrefix(rr.Body.String(), test.wantPrefix) {
+				t.Errorf("[%v]: got/want mismatch:\n\twant: %s\n\tgot: %s",
+					test.desc, test.wantPrefix, rr.Body.String())
+			}
+		}
+	}
+}
+
+// Status url: /status?id=8C:AA:B5:7A:BC:AD&leds=10&len=500
+func TestStatus(t *testing.T) {
+	tests := []struct {
+		desc       string
+		reqStr     string
+		wantPrefix string
+		wantCode   int
+	}{{
+		desc:       "/status no id",
+		reqStr:     "/status",
+		wantPrefix: "success SetColor",
 		wantCode:   http.StatusBadRequest,
 	}, {
-		desc:       "/update/basic too few slashes.",
-		reqStr:     "/update/basic",
-		wantPrefix: "",
-		wantCode:   http.StatusBadRequest,
+		desc:     "/status invalid LED count",
+		reqStr:   "/status?id=8C:AA:B5:7A:BC:AD&leds=ten",
+		wantCode: http.StatusBadRequest,
 	}, {
-		desc:       "/update/basic too many slashes.",
-		reqStr:     "/update/basic/things/to/do/C8:AA:B5:7A:BC:DA",
-		wantPrefix: "",
-		wantCode:   http.StatusBadRequest,
+		desc:     "/status invalid stepLen",
+		reqStr:   "/status?id=8C:AA:B5:7A:BC:AD&leds=10&len=five",
+		wantCode: http.StatusBadRequest,
 	}, {
-		desc:       "/update/basic unknown station",
-		reqStr:     "/update/basic/C8:AA:B5:7A:BC:DA",
-		wantPrefix: "",
-		wantCode:   http.StatusBadRequest,
+		desc:     "/status unknown client",
+		reqStr:   "/status?id=C8:AA:B5:7A:BC:DA&leds=10&len=500",
+		wantCode: http.StatusBadRequest,
 	}}
 
 	for _, test := range tests {
