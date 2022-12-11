@@ -308,15 +308,16 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 
 	// Process the variables from the request.
 	// Get the led count from the request. (Not required anymore)
-	//ledStr := r.URL.Query().Get("leds")
+	ledStr := r.URL.Query().Get("leds")
 	// id is the MAC address of the client.
 	id := r.URL.Query().Get("id")
 	stepLenStr := r.URL.Query().Get("len")
-	//leds, err := strconv.Atoi(ledStr)
-	//if err != nil {
-	//	log.Errorf("failed to parse ledStr(%s) to int: %v", ledStr, err)
-	//	return
-	//}
+	leds, err := strconv.Atoi(ledStr)
+	if err != nil {
+		log.Errorf("failed to parse ledStr(%s) to int: %v", ledStr, err)
+		return
+	}
+
 	// stepLen is the length of time per step in ms.
 	stepLen, err := strconv.Atoi(stepLenStr)
 	if err != nil {
@@ -330,6 +331,7 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	client.NumLEDS = leds
 
 	log.Infof("Request from client: %s id: %s with stepLen: %d", client.Name, id, stepLen)
 
