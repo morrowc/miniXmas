@@ -195,7 +195,7 @@ var (
 		"8c:aa:b5:7a:bc:ad": &Client{
 			Name:    "Gutter Kitchen",
 			Loc:     GUTTER,
-			NumLEDS: 30,
+			NumLEDS: 30 * 5,
 		},
 		// Placeholder MAC address for the gutter towards the TV room
 		"8c:aa:b5:7a:7d:15": &Client{
