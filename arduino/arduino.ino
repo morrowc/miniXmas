@@ -110,61 +110,15 @@ void loop()
     Serial.printf("%d / %d == %d\n", WAIT_TIME, TOTAL_INTERVALS,
       WAIT_TIME / TOTAL_INTERVALS);
 
+    // Handle each step, with a request to the HTTP service at
+    // each step start.
     for (int i = 0; i < NUM_LEDS; i++) {
         String color = doc["Data"][0]["Colors"][i];
         int cInt = color.toInt();
         leds[i] = cInt;
-        Serial.printf("Color: %s Num: %d", color, cInt);
+        // Serial.printf("Color: %s Num: %d", color, cInt);
         FastLED.show();
     }
-    /*
-    // Use strtok() to tokenize the http payload.
-    // First token should be the timestamp, second is the dictate.
-    char *token = strtok(&p_array[0], DELIMITER);
-    if ( token != NULL ) {
-      // Convert token to String.
-      String sToken(token);
-      if ( !sToken.equals(CURRENT) ) {
-        CURRENT = sToken;
-        token = strtok(NULL, DELIMITER);
-        if ( token != NULL ) { DICTATE = token; }
-        DICTATE.trim();
-        // Display single color for now.
-        // fill_rainbow(leds, NUM_LEDS, 0, 5);
-        CRGB::HTMLColorCode color;
-        if (strcmp(DICTATE.c_str(), "red") == 0 ) {
-          color = CRGB::Red;
-          // Serial.println("Reset color to red");
-        } else if (strcmp(DICTATE.c_str(), "orange") == 0 ) {
-          color = CRGB::Orange;
-          // Serial.println("Reset color to orange");
-        } else if (strcmp(DICTATE.c_str(), "yellow") == 0) {
-          color = CRGB::Yellow;
-          // Serial.println("Reset color to yellow");
-        } else if (strcmp(DICTATE.c_str(), "green") == 0) {
-          color = CRGB::Green;
-          // Serial.println("Reset color to green");
-        } else if (strcmp(DICTATE.c_str(), "blue") == 0) {
-          color = CRGB::Blue;
-          // Serial.println("Reset color to blue");
-        } else if (strcmp(DICTATE.c_str(), "indigo") == 0) {
-          color = CRGB::Indigo;
-          // Serial.println("Reset color to indigo");
-        } else if (strcmp(DICTATE.c_str(), "violet") == 0) {
-          color = CRGB::Violet;
-          // Serial.println("Reset color to violet");
-        } else {
-          color = CRGB::Red;
-          // Serial.println("Reset color to default red");
-        }
-        for (int i = 0; i < NUM_LEDS; i++) {
-            leds[i] = color;
-            FastLED.show();
-        }
-        Serial.println();
-      }
-    }
-  */
   } else {
     // 
     Serial.println("failed to make http request");
