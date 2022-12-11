@@ -218,7 +218,9 @@ func clientIdleUpdate(t time.Duration, c map[string]*Client) {
 		for _, client := range c {
 			if time.Now().UnixNano()-client.CurrentColor.TS > t.Nanoseconds() {
 				log.Infof("Setting new color for client: %s", client.Name)
-				client.SetColor(client.CurrentColor.Data)
+				if err := client.SetColor(client.CurrentColor.Data); err != nil {
+					log.Errorf("failed to SetColor for client %s: %v", client.Name, err)
+				}
 			}
 		}
 	}
@@ -239,16 +241,16 @@ type Client struct {
 	CurrentColorJSON *string
 }
 
-func (c *Client) SetColor(cElem *[]ColorElement) {
+func (c *Client) SetColor(cElem *[]ColorElement) error {
 	c.CurrentColor.Data = cElem
 	c.CurrentColor.TS = time.Now().UnixNano()
 	jsonOut, err := json.Marshal(c.CurrentColor)
 	if err != nil {
-		log.Errorf("failed to marshal color: %v", err)
-		return
+		return fmt.Errorf("failed to marshal color: %v", err)
 	}
 	jsonOutStr := string(jsonOut)
 	c.CurrentColorJSON = &jsonOutStr
+	return nil
 }
 
 // RGBColor is an int representing a color in RGB format.
@@ -432,10 +434,12 @@ func main() {
 	// White is used to test all LEDs quickly.
 	for _, c := range Clients {
 		c.CurrentColor = &Resp{}
-		c.SetColor(&[]ColorElement{{
+		if err := c.SetColor(&[]ColorElement{{
 			Steps:  1,
 			Colors: returnAllOneColor(0xFFFFFF, c.NumLEDS)},
-		})
+		}); err != nil {
+			log.Errorf("failed to SetColor for client: %s: %v", c.Name, err)
+		}
 	}
 
 	go clientIdleUpdate(idleTime, Clients)
