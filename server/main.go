@@ -213,19 +213,6 @@ func clientSearch(name string, c map[string]*Client) (*Client, bool) {
 	return out, ok
 }
 
-func clientIdleUpdate(t time.Duration, c map[string]*Client) {
-	for {
-		for _, client := range c {
-			if time.Now().UnixNano()-client.CurrentColor.TS > t.Nanoseconds() {
-				log.Infof("Setting new color for client: %s", client.Name)
-				if err := client.SetColor(client.CurrentColor.Data); err != nil {
-					log.Errorf("failed to SetColor for client %s: %v", client.Name, err)
-				}
-			}
-		}
-	}
-}
-
 type Client struct {
 	// Name is a user friendly name for the client
 	Name string
@@ -276,6 +263,14 @@ type ColorElement struct {
 	Colors *Colors // color list, one per led in the string.
 }
 
+func returnAllOneColor(color RGBColor, numLEDS int) *Colors {
+	cs := Colors{}
+	for i := 0; i < numLEDS; i++ {
+		cs = append(cs, color)
+	}
+	return &cs
+}
+
 // handler is the base struct used to handle http services.
 type handler struct {
 	dictate   Resp
@@ -299,6 +294,19 @@ func newHandler(port int) (*handler, error) {
 		port:      port,
 		clients:   Clients,
 	}, nil
+}
+
+func (h *handler) clientIdleUpdate(t time.Duration) {
+	for {
+		for _, client := range h.clients {
+			if time.Now().UnixNano()-client.CurrentColor.TS > t.Nanoseconds() {
+				log.Infof("Setting new color for client: %s", client.Name)
+				if err := client.SetColor(h.pickDictate(client)); err != nil {
+					log.Errorf("failed to SetColor for client %s: %v", client.Name, err)
+				}
+			}
+		}
+	}
 }
 
 // status returns the current timestamped color dictate to client LED entities.
@@ -344,21 +352,54 @@ func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got update request")
 	fmt.Fprintf(w, "Update message: %v\n", time.Now())
 
-	m := &miniXmas{
-		reqUrlSplit: strings.Split(r.URL.Path, "/"),
-		h:           h,
-	}
+	reqUrlSplit := strings.Split(r.URL.Path, "/")
 
-	if len(m.reqUrlSplit) < 3 {
+	if len(reqUrlSplit) < 3 {
 		log.Errorf("invalid url: %s", r.URL.Path)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	// switch on the second part of the url to determine the update type.
-	switch m.reqUrlSplit[2] {
+	switch reqUrlSplit[2] {
 	case "basic":
-		m.updateBasic(w, r)
+		h.updateBasic(w, r, reqUrlSplit)
+	}
+}
+
+// updateBasic picks a random color to select from and applies it statically to the client.
+func (h *handler) updateBasic(w http.ResponseWriter, r *http.Request, reqUrlSplit []string) {
+	if len(reqUrlSplit) != 4 {
+		log.Errorf("invalid url: %s", r.URL.Path)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Get the client id from the url.
+	id := reqUrlSplit[3]
+	var ok bool
+	client, ok := clientSearch(id, h.clients)
+	if !ok {
+		log.Errorf("unknown client id: %s", id)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Pick a random color to dictate to the client.
+	if err := client.SetColor(h.pickDictate(client)); err != nil {
+		fmt.Errorf("failed to SetColor for client: %s: %v", client.Name, err)
+	}
+	log.Infof("Updated client: %s id: %s with color: %v", client.Name, id, client.CurrentColor.Data)
+}
+
+func (h *handler) pickDictate(client *Client) *[]ColorElement {
+	// Get a single color randomly from the colorDictates map.
+	color := colorDictates[h.colorKeys[rand.Intn(len(h.colorKeys))]]
+
+	return &[]ColorElement{
+		{
+			Colors: returnAllOneColor(color, client.NumLEDS),
+		},
 	}
 }
 
@@ -383,48 +424,6 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type miniXmas struct {
-	reqUrlSplit []string
-	client      *Client
-	h           *handler
-}
-
-func (m *miniXmas) pickDictate() *[]ColorElement {
-	// Get a single color randomly from the colorDictates map.
-	color := colorDictates[m.h.colorKeys[rand.Intn(len(m.h.colorKeys))]]
-
-	return &[]ColorElement{
-		{
-			Colors: returnAllOneColor(color, m.client.NumLEDS),
-		},
-	}
-}
-
-// updateBasic picks a random color to select from and applies it statically to the client.
-func (m *miniXmas) updateBasic(w http.ResponseWriter, r *http.Request) {
-	if len(m.reqUrlSplit) != 4 {
-		log.Errorf("invalid url: %s", r.URL.Path)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	// Get the client id from the url.
-	id := m.reqUrlSplit[3]
-	var ok bool
-	m.client, ok = clientSearch(id, m.h.clients)
-	if !ok {
-		log.Errorf("unknown client id: %s", id)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	// Pick a random color to dictate to the client.
-	if err := m.client.SetColor(m.pickDictate()); err != nil {
-		fmt.Errorf("failed to SetColor for client: %s: %v", m.client.Name, err)
-	}
-	log.Infof("Updated client: %s id: %s with color: %v", m.client.Name, id, m.client.CurrentColor.Data)
-}
-
 func main() {
 	flag.Parse()
 	log.Infof("Server will listen on port: %d", *port)
@@ -446,7 +445,7 @@ func main() {
 		}
 	}
 
-	go clientIdleUpdate(idleTime, Clients)
+	go h.clientIdleUpdate(idleTime)
 
 	// Start a goroutine that will force a change
 
@@ -455,12 +454,4 @@ func main() {
 		Handler: h,
 	}
 	log.Fatal(s.ListenAndServe())
-}
-
-func returnAllOneColor(color RGBColor, numLEDS int) *Colors {
-	cs := Colors{}
-	for i := 0; i < numLEDS; i++ {
-		cs = append(cs, color)
-	}
-	return &cs
 }
