@@ -29,7 +29,7 @@ const unsigned long DELAY = 1000;
 // The delimiter between reply parts from the controller.
 const char* DELIMITER = ", ";
 // The current timestamp value from the previous controller reply.
-String CURRENT = "";
+long long CURRENT = 0;
 // The ID of this board, it's MacAddress.
 String ID = "";
 
@@ -66,65 +66,76 @@ void setup() {
   FastLED.setBrightness(BRIGHTNESS);
 }
 
-void loop()
-{
-  int st = millis();
-  Serial.printf("Millis: %d\n", st);
-  Serial.println();
+// Handle sending a request to the http server, return the raw payload.
+String doHttp(char* url) {
   // Create an http client in this version of the loop, collect data from
   // remote server.
   WiFiClient client;
   HTTPClient http;
+  http.begin(client, url);
+  int httpResponseCode = http.GET();
+  if (httpResponseCode>0) {
+    // Get the payload as a String()
+    return http.getString();
+  }
+  return String("");
+}
+
+void loop()
+{
+  int st = millis();
+  Serial.printf("Millis: %d", st);
+  Serial.println();
   char url[strlen(URL)+50];
   sprintf(url, "%s?id=%s&leds=%d&len=%d", URL, ID.c_str(), NUM_LEDS, DELAY);
 
   // Set the default dictate to 'rainbow'.
   String DICTATE = "rainbow";
+  String  payload = doHttp(url);
+  // Determine how long the payload is.
+  if (payload.length() == 0) {
+    Serial.println("Got zero length HTTP reply");
+    Serial.println();
+    checkDelay(st);
+    return;
+  }
 
-  http.begin(client, url);
-  int httpResponseCode = http.GET();
-  if (httpResponseCode>0) {
-    // Get the payload as a String()
-    String payload = http.getString();
+  // Create a JSON Document, and deserialize payload into that.
+  StaticJsonDocument<10000> doc;
 
-    // Determine how long the payload is.
-    const size_t CAPACITY = payload.length();
-    // Create a JSON Document, and deserialize payload into that.
-    // StaticJsonDocument<CAPACITY> doc;
+  DeserializationError error = deserializeJson(doc, payload);
 
-    StaticJsonDocument<10000> doc;
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    checkDelay(st);
+    return;
+  }
 
-    DeserializationError error = deserializeJson(doc, payload);
-
-    if (error) {
-      Serial.print(F("deserializeJson() failed: "));
-      Serial.println(error.f_str());
-      checkDelay(st);
-      return;
-    }
-
-    long long TS = doc["TS"]; // 1670710298274952000
-
-    TOTAL_INTERVALS++;
-    WAIT_TIME += (millis() - st);
-    Serial.printf("%d / %d == %d\n", WAIT_TIME, TOTAL_INTERVALS,
-      WAIT_TIME / TOTAL_INTERVALS);
-
-    // Handle each step, with a request to the HTTP service at
-    // each step start.
-    for (int i = 0; i < NUM_LEDS; i++) {
-        String color = doc["Data"][0]["Colors"][i];
-        int cInt = color.toInt();
-        leds[i] = cInt;
-        // Serial.printf("Color: %s Num: %d", color, cInt);
-        FastLED.show();
-    }
+  long long TS = doc["TS"]; // 1670710298274952000
+  if (CURRENT != TS) {
+    CURRENT = TS;
   } else {
-    // 
-    Serial.println("failed to make http request");
-    pride();
-    delay(1000);
-    // FastLED.show();  
+    Serial.print("no change in TimeStamp");
+    Serial.println();
+    checkDelay(st);
+    return;
+  }
+
+  TOTAL_INTERVALS++;
+  WAIT_TIME += (millis() - st);
+  Serial.printf("%d / %d == %d", WAIT_TIME, TOTAL_INTERVALS,
+    WAIT_TIME / TOTAL_INTERVALS);
+  Serial.println();
+
+  // Handle each step, with a request to the HTTP service at
+  // each step start.
+  for (int i = 0; i < NUM_LEDS; i++) {
+      String color = doc["Data"][0]["Colors"][i];
+      int cInt = color.toInt();
+      leds[i] = cInt;
+      // Serial.printf("Color: %s Num: %d", color, cInt);
+      FastLED.show();
   }
   // Delay until after the reuqired wait period between changes ocurs.
   checkDelay(st);
