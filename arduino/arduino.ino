@@ -17,7 +17,7 @@
 #define DATA_PIN    2
 #define LED_TYPE    NEOPIXEL
 #define COLOR_ORDER RGB
-#define NUM_LEDS    150
+#define NUM_LEDS    30
 #define BRIGHTNESS  200
 #define  ARDUINOJSON_USE_LONG_LONG 1
 
