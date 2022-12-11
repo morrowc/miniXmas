@@ -317,6 +317,11 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	// Process the variables from the request.
 	// id is the MAC address of the client.
 	id := r.URL.Query().Get("id")
+	if id == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, "no client ID")
+		return
+	}
 
 	// Get the led count from the request.
 	ledStr := r.URL.Query().Get("leds")
@@ -324,6 +329,8 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	leds, err := strconv.Atoi(ledStr)
 	if err != nil {
 		log.Errorf("failed to parse ledStr(%s) to int: %v", ledStr, err)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, "invalid led count")
 		return
 	}
 
@@ -331,6 +338,8 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	stepLen, err := strconv.Atoi(stepLenStr)
 	if err != nil {
 		log.Errorf("failed to parse stepLenStr(%s) to int: %v", stepLenStr, err)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, "invalid steplen")
 		return
 	}
 
@@ -338,11 +347,10 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		log.Errorf("unknown client id: %s", id)
 		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, "unkonwn client id")
 		return
 	}
-	// NOTE: This is not working, for reasons which are not clear.
-	// Almost certainly this is a problem with updating the map data.
-	// Almost certainly this is going to cause a panic :)
+	// Reset the client numLEDS if the client sends that along.
 	client.NumLEDS = leds
 
 	log.Infof("Request from client: %s id: %s with stepLen: %d", client.Name, id, stepLen)
