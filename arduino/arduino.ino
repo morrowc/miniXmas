@@ -130,12 +130,30 @@ void loop()
 
   // Handle each step, with a request to the HTTP service at
   // each step start.
-  for (int i = 0; i < NUM_LEDS; i++) {
-      String color = doc["Data"][0]["Colors"][i];
-      int cInt = color.toInt();
-      leds[i] = cInt;
-      // Serial.printf("Color: %s Num: %d", color, cInt);
-      FastLED.show();
+  /*
+   * Example data.
+  {
+   "TS":1670778488327762396,
+   "Data":[
+      {
+         "Steps":0,
+         "Colors":[
+            10145074,
+            10145074,
+            10145074
+            ]
+        }
+    ]
+  }
+  */
+  for (s = 0; s < length(doc["Data"][0]); s++) {
+    for (int i = 0; i < NUM_LEDS; i++) {
+        String color = doc["Data"][0]["Colors"][i];
+        int cInt = color.toInt();
+        leds[i] = cInt;
+        // Serial.printf("Color: %s Num: %d", color, cInt);
+        FastLED.show();
+    }
   }
   // Delay until after the reuqired wait period between changes ocurs.
   checkDelay(st);
