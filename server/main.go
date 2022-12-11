@@ -354,8 +354,6 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 // Response to POST /update
 func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got update request")
-	fmt.Fprintf(w, "Update message: %v\n", time.Now())
-
 	reqUrlSplit := strings.Split(r.URL.Path, "/")
 
 	if len(reqUrlSplit) < 3 {
@@ -376,6 +374,7 @@ func (h *handler) updateBasic(w http.ResponseWriter, r *http.Request, reqUrlSpli
 	if len(reqUrlSplit) != 4 {
 		log.Errorf("invalid url: %s", r.URL.Path)
 		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "invalid url: %s", r.URL.Path)
 		return
 	}
 
@@ -386,14 +385,19 @@ func (h *handler) updateBasic(w http.ResponseWriter, r *http.Request, reqUrlSpli
 	if !ok {
 		log.Errorf("unknown client id: %s", id)
 		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "unknown client id: %s", r.URL.Path)
 		return
 	}
 
 	// Pick a random color to dictate to the client.
 	if err := client.SetColor(h.pickDictate(client)); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "failed to SetColor for client: %s", r.URL.Path)
 		fmt.Errorf("failed to SetColor for client: %s: %v", client.Name, err)
 	}
 	log.Infof("Updated client: %s id: %s with color: %v", client.Name, id, *client.CurrentColor.Data)
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "success SetColor")
 }
 
 func (h *handler) pickDictate(client *Client) *[]ColorElement {
@@ -428,15 +432,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func main() {
-	flag.Parse()
-	log.Infof("Server will listen on port: %d", *port)
-
-	h, err := newHandler(*port)
-	if err != nil {
-		log.Fatalf("failed to create handler: %v", err)
-	}
-
+func initClients() {
 	// Define all clients to have a default color dictate.
 	// White is used to test all LEDs quickly.
 	for _, c := range Clients {
@@ -448,6 +444,19 @@ func main() {
 			log.Errorf("failed to SetColor for client: %s: %v", c.Name, err)
 		}
 	}
+}
+
+func main() {
+	flag.Parse()
+	log.Infof("Server will listen on port: %d", *port)
+
+	h, err := newHandler(*port)
+	if err != nil {
+		log.Fatalf("failed to create handler: %v", err)
+	}
+
+	// Initialize the client data structures.
+	initClients()
 
 	go h.clientIdleUpdate(idleTime)
 
