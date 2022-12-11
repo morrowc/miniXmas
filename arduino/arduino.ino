@@ -3,6 +3,7 @@
 // URL.
 #include <string.h>
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include "FastLED.h"
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
@@ -18,12 +19,13 @@
 #define COLOR_ORDER RGB
 #define NUM_LEDS    150
 #define BRIGHTNESS  200
+#define  ARDUINOJSON_USE_LONG_LONG 1
 
 const char* URL = "http://mailserver.ops-netman.net:6789/status";
 const char* SSID = "theaternet";
 const char* PASS = "network123";
 // Delay betwen web requests and possible change to lights.
-const unsigned long DELAY = 100;
+const unsigned long DELAY = 1000;
 // The delimiter between reply parts from the controller.
 const char* DELIMITER = ", ";
 // The current timestamp value from the previous controller reply.
@@ -82,17 +84,33 @@ void loop()
   http.begin(client, url);
   int httpResponseCode = http.GET();
   if (httpResponseCode>0) {
-    // Serial.printf("HTTP Response Code: %d\r\n", httpResponseCode);
+    // Get the payload as a String()
     String payload = http.getString();
-    // Serial.println(payload);
-    // Convert payload from String to char[] and from char[] to char*.
-    int n = payload.length();
-    char p_array[n + 1];
-    strcpy(p_array, payload.c_str());
+
+    // Determine how long the payload is.
+    const size_t CAPACITY = payload.length();
+    // Create a JSON Document, and deserialize payload into that.
+    // StaticJsonDocument<CAPACITY> doc;
+
+    StaticJsonDocument<10000> doc;
+
+    DeserializationError error = deserializeJson(doc, payload);
+
+    if (error) {
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.f_str());
+      checkDelay(st);
+      return;
+    }
+
+    long long TS = doc["TS"]; // 1670710298274952000
+
     TOTAL_INTERVALS++;
     WAIT_TIME += (millis() - st);
-    Serial.printf("%d / %d == %d\n", WAIT_TIME, TOTAL_INTERVALS, WAIT_TIME / TOTAL_INTERVALS);
+    Serial.printf("%d / %d == %d\n", WAIT_TIME, TOTAL_INTERVALS,
+      WAIT_TIME / TOTAL_INTERVALS);
 
+    /*
     // Use strtok() to tokenize the http payload.
     // First token should be the timestamp, second is the dictate.
     char *token = strtok(&p_array[0], DELIMITER);
@@ -139,6 +157,7 @@ void loop()
         Serial.println();
       }
     }
+  */
   } else {
     // 
     Serial.println("failed to make http request");
@@ -147,9 +166,12 @@ void loop()
     // FastLED.show();  
   }
   // Delay until after the reuqired wait period between changes ocurs.
-  while ( (millis() - st) < DELAY ) {}
+  checkDelay(st);
 }
 
+void checkDelay(int st) {
+  while ( (millis() - st) < DELAY ) {}
+}
 
 // This function draws rainbows with an ever-changing,
 // widely-varying set of parameters.

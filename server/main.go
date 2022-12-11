@@ -188,7 +188,7 @@ var (
 			NumLEDS: 30 * 5,
 		},
 		// Placeholder MAC address for the gutter towards the kitchen
-		"8c:aa:b5:7a:7d:14": {
+		"8c:aa:b5:7a:bc:ad": {
 			Name:    "Gutter Kitchen",
 			Loc:     GUTTER,
 			NumLEDS: 30 * 5,
