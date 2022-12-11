@@ -110,6 +110,13 @@ void loop()
     Serial.printf("%d / %d == %d\n", WAIT_TIME, TOTAL_INTERVALS,
       WAIT_TIME / TOTAL_INTERVALS);
 
+    for (int i = 0; i < NUM_LEDS; i++) {
+        String color = doc["Data"][0]["Colors"][i];
+        int cInt = color.toInt();
+        leds[i] = cInt;
+        Serial.printf("Color: %s Num: %d", color, cInt);
+        FastLED.show();
+    }
     /*
     // Use strtok() to tokenize the http payload.
     // First token should be the timestamp, second is the dictate.
