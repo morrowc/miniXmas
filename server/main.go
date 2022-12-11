@@ -393,7 +393,7 @@ func (h *handler) updateBasic(w http.ResponseWriter, r *http.Request, reqUrlSpli
 	if err := client.SetColor(h.pickDictate(client)); err != nil {
 		fmt.Errorf("failed to SetColor for client: %s: %v", client.Name, err)
 	}
-	log.Infof("Updated client: %s id: %s with color: %v", client.Name, id, client.CurrentColor.Data)
+	log.Infof("Updated client: %s id: %s with color: %v", client.Name, id, *client.CurrentColor.Data)
 }
 
 func (h *handler) pickDictate(client *Client) *[]ColorElement {
