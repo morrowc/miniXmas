@@ -195,7 +195,7 @@ var (
 		"8c:aa:b5:7a:bc:ad": &Client{
 			Name:    "Gutter Kitchen",
 			Loc:     GUTTER,
-			NumLEDS: 30 * 5,
+			NumLEDS: 30,
 		},
 		// Placeholder MAC address for the gutter towards the TV room
 		"8c:aa:b5:7a:7d:15": &Client{
@@ -315,10 +315,11 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got status request")
 
 	// Process the variables from the request.
-	// Get the led count from the request. (Not required anymore)
-	ledStr := r.URL.Query().Get("leds")
 	// id is the MAC address of the client.
 	id := r.URL.Query().Get("id")
+
+	// Get the led count from the request.
+	ledStr := r.URL.Query().Get("leds")
 	stepLenStr := r.URL.Query().Get("len")
 	leds, err := strconv.Atoi(ledStr)
 	if err != nil {
@@ -339,6 +340,9 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	// NOTE: This is not working, for reasons which are not clear.
+	// Almost certainly this is a problem with updating the map data.
+	// Almost certainly this is going to cause a panic :)
 	client.NumLEDS = leds
 
 	log.Infof("Request from client: %s id: %s with stepLen: %d", client.Name, id, stepLen)
