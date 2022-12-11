@@ -69,6 +69,11 @@ func TestUpdate(t *testing.T) {
 		wantPrefix: "success SetColor",
 		wantCode:   http.StatusOK,
 	}, {
+		desc:       "/update too few slashes.",
+		reqStr:     "/update",
+		wantPrefix: "",
+		wantCode:   http.StatusBadRequest,
+	}, {
 		desc:       "/update/basic too few slashes.",
 		reqStr:     "/update/basic",
 		wantPrefix: "",
