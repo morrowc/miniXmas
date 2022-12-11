@@ -372,7 +372,6 @@ func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 // updateBasic picks a random color to select from and applies it statically to the client.
 func (h *handler) updateBasic(w http.ResponseWriter, r *http.Request, reqUrlSplit []string) {
 	if len(reqUrlSplit) != 4 {
-		log.Errorf("invalid url: %s", r.URL.Path)
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "invalid url: %s", r.URL.Path)
 		return
@@ -383,7 +382,6 @@ func (h *handler) updateBasic(w http.ResponseWriter, r *http.Request, reqUrlSpli
 	var ok bool
 	client, ok := clientSearch(id, h.clients)
 	if !ok {
-		log.Errorf("unknown client id: %s", id)
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "unknown client id: %s", r.URL.Path)
 		return
@@ -393,7 +391,6 @@ func (h *handler) updateBasic(w http.ResponseWriter, r *http.Request, reqUrlSpli
 	if err := client.SetColor(h.pickDictate(client)); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "failed to SetColor for client: %s", r.URL.Path)
-		fmt.Errorf("failed to SetColor for client: %s: %v", client.Name, err)
 	}
 	log.Infof("Updated client: %s id: %s with color: %v", client.Name, id, *client.CurrentColor.Data)
 	w.WriteHeader(http.StatusOK)
