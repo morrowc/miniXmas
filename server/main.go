@@ -463,7 +463,7 @@ func (h *handler) updateHSVTime(w http.ResponseWriter, r *http.Request, reqURLSp
 		// convert HSV to RGB
 		r, g, b := colorful.Hsv(float64(step.Color.H), float64(step.Color.S), float64(step.Color.V)).RGB255()
 		colors = append(colors, ColorElement{
-			Colors: returnAllOneColor(RGBColor((int)(r)*2^16+(int)(g)*2^8+(int)(b)), client.NumLEDS),
+			Colors: returnAllOneColor(RGBColor((int)(r)*65536+(int)(g)*256+(int)(b)), client.NumLEDS),
 			Steps:  steps,
 		})
 	}
