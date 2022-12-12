@@ -230,9 +230,9 @@ type Client struct {
 
 func (c *Client) SetColor(cElem *[]ColorElement, ts int64) error {
 	c.CurrentColor.Data = cElem
-	c.CurrentColor.TS = ts
-	if ts == 0 {
-		c.CurrentColor.TS = time.Now().UnixNano()
+	c.CurrentColor.TS = time.Now().UnixNano()
+	if ts != 0 {
+		c.CurrentColor.TS = ts
 	}
 	jsonOut, err := json.Marshal(c.CurrentColor)
 	if err != nil {
