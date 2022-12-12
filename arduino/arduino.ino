@@ -35,13 +35,8 @@ const int CYCLES = 10;
 const char* DELIMITER = ", ";
 // The current timestamp value from the previous controller reply.
 long long CURRENT = 0;
-// The ID of this board, it's MacAddress.
-String ID = "";
-
+// The Array of LEDs to control.
 CRGB leds[NUM_LEDS];
-unsigned long TOTAL_INTERVALS = 0;
-unsigned long WAIT_TIME = 0;
-
 
 void setup() {
   // Setup the serial output for console/logging.
@@ -59,9 +54,6 @@ void setup() {
   Serial.println("connected to wifi");
   if ((WiFi.status() == WL_CONNECTED)) {}
   
-  // Set the ID/mac-addr.
-  ID = WiFi.macAddress();
-
   // tell FastLED about the LED strip configuration
   FastLED.addLeds<LED_TYPE,DATA_PIN>(leds, NUM_LEDS);
   FastLED.setCorrection(TypicalLEDStrip);
@@ -96,10 +88,8 @@ void loop()
   char url[strlen(URL)+50];
   sprintf(url, "%s?id=%s&leds=%d&len=%d", URL, WiFi.macAddress().c_str(), NUM_LEDS, DELAY);
 
-  // Set the default dictate to 'rainbow'.
-  String DICTATE = "rainbow";
   String  payload = doHttp(url);
-  // Determine how long the payload is.
+  // Determine how long the payload is, if zero, error and return..
   if (payload.length() == 0) {
     Serial.println("Got zero length HTTP reply");
     Serial.println();
@@ -108,6 +98,7 @@ void loop()
   }
 
   // Create a JSON Document, and deserialize payload into that.
+  // NOTE: the 10k used here is a guestimate.
   StaticJsonDocument<10000> doc;
 
   DeserializationError error = deserializeJson(doc, payload);
@@ -129,11 +120,6 @@ void loop()
     return;
   }
 
-  TOTAL_INTERVALS++;
-  WAIT_TIME += (millis() - st);
-  Serial.printf("%d / %d == %d", WAIT_TIME, TOTAL_INTERVALS,
-    WAIT_TIME / TOTAL_INTERVALS);
-  Serial.println();
 
   // Handle each step, with a request to the HTTP service at
   // each step start.
