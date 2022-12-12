@@ -449,7 +449,7 @@ func initClients(leds int) {
 		if err := c.SetColor(&[]ColorElement{{
 			Steps:  1,
 			Colors: returnAllOneColor(0xFFFFFF, c.NumLEDS)},
-		}, 0); err != nil {
+		}, 1); err != nil {
 			log.Errorf("failed to SetColor for client: %s: %v", c.Name, err)
 		}
 	}

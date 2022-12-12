@@ -150,7 +150,7 @@ func TestStatus(t *testing.T) {
 		desc:     "/status known client expect good output.",
 		reqStr:   "/status?id=8C:AA:B5:7A:BC:AD&leds=2&len=10",
 		wantCode: http.StatusOK,
-		want:     `{"TS":1670808464406994837,"Data":[{"Steps":1,"Colors":[16777215,16777215]}]}`,
+		want:     `{"TS":1,"Data":[{"Steps":1,"Colors":[16777215,16777215]}]}`,
 	}}
 
 	for _, test := range tests {
