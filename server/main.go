@@ -221,15 +221,15 @@ type RGBTimeRequest struct {
 
 type HSVTimeRequest struct {
 	Steps []struct {
-		// Color is the color to set the LED strip to.
 		Color struct {
-			H int `json:"h"`
-			S int `json:"s"`
-			V int `json:"v"`
+			HSV struct {
+				H int `json:"h"`
+				S int `json:"s"`
+				V int `json:"v"`
+			} `json:"$"`
 		} `json:"color"`
-		// Time is the time in milliseconds to transition to the new color.
 		Time int `json:"time"`
-	}
+	} `json:"Steps"`
 }
 
 // Search searches the ClientMap for a client with the given name.
@@ -461,7 +461,7 @@ func (h *handler) updateHSVTime(w http.ResponseWriter, r *http.Request, reqURLSp
 		steps := step.Time / client.StepLen
 
 		// convert HSV to RGB
-		r, g, b := colorful.Hsv(float64(step.Color.H), float64(step.Color.S), float64(step.Color.V)).RGB255()
+		r, g, b := colorful.Hsv(float64(step.Color.HSV.H), float64(step.Color.HSV.S), float64(step.Color.HSV.V)).RGB255()
 		colors = append(colors, ColorElement{
 			Colors: returnAllOneColor(RGBColor((int)(r)*65536+(int)(g)*256+(int)(b)), client.NumLEDS),
 			Steps:  steps,
