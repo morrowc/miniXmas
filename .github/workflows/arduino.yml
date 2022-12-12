@@ -1,0 +1,19 @@
+name: "Arduino Builder"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches: [ "main" ]
+
+jobs:
+
+  build:
+      runs-on: ubuntu-latest
+      steps:
+      - uses: actions/checkout@v1
+      - name: Build all example sketches
+        uses: Legion2/arduino-builder-action@v2.0.0
+        with:
+          board: "esp8266:esp8266:nodemcuv2"

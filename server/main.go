@@ -16,11 +16,14 @@ import (
 )
 
 const (
-	ledCont = 5000
+	ledCount = 5
 
 	// List of locations with to organize their clients
 	GUTTER = 0
 	TEST   = 1
+
+	// Period of time between stagnant light coloration.
+	idleTime = 5 * time.Second
 )
 
 var (
@@ -179,28 +182,66 @@ var (
 		"Yellow":                     0xFFFF00, ///< @htmlcolorblock{FFFF00}
 		"YellowGreen":                0x9ACD32, ///< @htmlcolorblock{9ACD32}
 	}
+
 	// Clients is a map of mac addresses to client objects.
 	// All IDs should be lowercase, use Clients.Search() to find a client by ID.
-	Clients = ClientMap{
-		"8c:aa:b5:7a:7d:13": {
+	Clients = map[string]*Client{
+		"8c:aa:b5:7a:7d:13": &Client{
 			Name:    "Test Client",
 			Loc:     TEST,
-			NumLEDS: 30 * 5,
+			NumLEDS: ledCount,
 		},
 		// Placeholder MAC address for the gutter towards the kitchen
-		"8c:aa:b5:7a:7d:14": {
+		"8c:aa:b5:7a:bc:ad": &Client{
 			Name:    "Gutter Kitchen",
 			Loc:     GUTTER,
-			NumLEDS: 30 * 5,
+			NumLEDS: ledCount,
 		},
 		// Placeholder MAC address for the gutter towards the TV room
-		"8c:aa:b5:7a:7d:15": {
+		"8c:aa:b5:7a:7d:15": &Client{
 			Name:    "Gutter TV Room",
 			Loc:     GUTTER,
-			NumLEDS: 30 * 5,
+			NumLEDS: ledCount,
 		},
 	}
 )
+
+// Search searches the ClientMap for a client with the given name.
+// The name here is case-insensitive.
+func clientSearch(name string, c map[string]*Client) (*Client, bool) {
+	out, ok := c[strings.ToLower(name)]
+	return out, ok
+}
+
+type Client struct {
+	// Name is a user friendly name for the client
+	Name string
+	// Loc is the location of the client
+	Loc location
+	// CurrentColor is the current color of the client
+	CurrentColor *Resp
+	// NumLEDS is the number of LEDs in the client.
+	// Standard format is the density of the LED strip * length
+	NumLEDS int
+	// CurrentColorJSON is the current color of the client marshalled into JSON format.
+	// This is exactly what is returned to the client when they request a status update.
+	CurrentColorJSON *string
+}
+
+func (c *Client) SetColor(cElem *[]ColorElement, ts int64) error {
+	c.CurrentColor.Data = cElem
+	c.CurrentColor.TS = time.Now().UnixNano()
+	if ts != 0 {
+		c.CurrentColor.TS = ts
+	}
+	jsonOut, err := json.Marshal(c.CurrentColor)
+	if err != nil {
+		return fmt.Errorf("failed to marshal color: %v", err)
+	}
+	jsonOutStr := string(jsonOut)
+	c.CurrentColorJSON = &jsonOutStr
+	return nil
+}
 
 // RGBColor is an int representing a color in RGB format.
 // Example: 0x00FF00 is green.
@@ -225,12 +266,21 @@ type ColorElement struct {
 	Colors *Colors // color list, one per led in the string.
 }
 
+func returnAllOneColor(color RGBColor, numLEDS int) *Colors {
+	cs := Colors{}
+	for i := 0; i < numLEDS; i++ {
+		cs = append(cs, color)
+	}
+	return &cs
+}
+
 // handler is the base struct used to handle http services.
 type handler struct {
 	dictate   Resp
 	colorKeys []string
 	timestamp time.Time
 	port      int
+	clients   map[string]*Client
 }
 
 func newHandler(port int) (*handler, error) {
@@ -245,7 +295,21 @@ func newHandler(port int) (*handler, error) {
 		timestamp: time.Now(),
 		colorKeys: colors,
 		port:      port,
+		clients:   Clients,
 	}, nil
+}
+
+func (h *handler) clientIdleUpdate(t time.Duration) {
+	for {
+		for _, client := range h.clients {
+			if time.Now().UnixNano()-client.CurrentColor.TS > t.Nanoseconds() {
+				log.Infof("Setting new color for client: %s", client.Name)
+				if err := client.SetColor(h.pickDictate(client), 0); err != nil {
+					log.Errorf("failed to SetColor for client %s: %v", client.Name, err)
+				}
+			}
+		}
+	}
 }
 
 // status returns the current timestamped color dictate to client LED entities.
@@ -254,29 +318,43 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got status request")
 
 	// Process the variables from the request.
-	// Get the led count from the request. (Not required anymore)
-	//ledStr := r.URL.Query().Get("leds")
 	// id is the MAC address of the client.
 	id := r.URL.Query().Get("id")
+	if id == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, "no client ID")
+		return
+	}
+
+	// Get the led count from the request.
+	ledStr := r.URL.Query().Get("leds")
 	stepLenStr := r.URL.Query().Get("len")
-	//leds, err := strconv.Atoi(ledStr)
-	//if err != nil {
-	//	log.Errorf("failed to parse ledStr(%s) to int: %v", ledStr, err)
-	//	return
-	//}
+	leds, err := strconv.Atoi(ledStr)
+	if err != nil {
+		log.Errorf("failed to parse ledStr(%s) to int: %v", ledStr, err)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, "invalid led count")
+		return
+	}
+
 	// stepLen is the length of time per step in ms.
 	stepLen, err := strconv.Atoi(stepLenStr)
 	if err != nil {
 		log.Errorf("failed to parse stepLenStr(%s) to int: %v", stepLenStr, err)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, "invalid steplen")
 		return
 	}
 
-	client, ok := Clients.Search(id)
+	client, ok := clientSearch(id, h.clients)
 	if !ok {
 		log.Errorf("unknown client id: %s", id)
 		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, "unkonwn client id")
 		return
 	}
+	// Reset the client numLEDS if the client sends that along.
+	client.NumLEDS = leds
 
 	log.Infof("Request from client: %s id: %s with stepLen: %d", client.Name, id, stepLen)
 
@@ -287,20 +365,58 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 // Response to POST /update
 func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got update request")
-	fmt.Fprintf(w, "Update message: %v\n", time.Now())
-	m := &miniXmas{
-		reqUrlSplit: strings.Split(r.URL.Path, "/"),
-		h:           h}
-	if len(m.reqUrlSplit) < 3 {
+	reqUrlSplit := strings.Split(r.URL.Path, "/")
+
+	if len(reqUrlSplit) < 3 {
 		log.Errorf("invalid url: %s", r.URL.Path)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	// switch on the second part of the url to determine the update type.
-	switch m.reqUrlSplit[2] {
+	switch reqUrlSplit[2] {
 	case "basic":
-		m.updateBasic(w, r)
+		h.updateBasic(w, r, reqUrlSplit)
+	}
+}
+
+// updateBasic picks a random color to select from and applies it statically to the client.
+func (h *handler) updateBasic(w http.ResponseWriter, r *http.Request, reqUrlSplit []string) {
+	if len(reqUrlSplit) != 4 {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "invalid url: %s", r.URL.Path)
+		return
+	}
+
+	// Get the client id from the url.
+	id := reqUrlSplit[3]
+	var ok bool
+	client, ok := clientSearch(id, h.clients)
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "unknown client id: %s", r.URL.Path)
+		return
+	}
+
+	// Pick a random color to dictate to the client.
+	if err := client.SetColor(h.pickDictate(client), 0); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "failed to SetColor for client: %s", r.URL.Path)
+	}
+	log.Infof("Updated client: %s id: %s with color: %v", client.Name, id, *client.CurrentColor.Data)
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "success SetColor")
+}
+
+func (h *handler) pickDictate(client *Client) *[]ColorElement {
+	// Get a single color randomly from the colorDictates map.
+	color := colorDictates[h.colorKeys[rand.Intn(len(h.colorKeys))]]
+
+	return &[]ColorElement{
+		{
+			Steps:  1,
+			Colors: returnAllOneColor(color, client.NumLEDS),
+		},
 	}
 }
 
@@ -325,82 +441,19 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type miniXmas struct {
-	reqUrlSplit []string
-	client      *Client
-	h           *handler
-}
-
-func (m *miniXmas) pickDictate() *[]ColorElement {
-	// Get a single color randomly from the colorDictates map.
-	color := colorDictates[m.h.colorKeys[rand.Intn(len(m.h.colorKeys))]]
-
-	return &[]ColorElement{
-		{
-			Colors: returnAllOneColor(color, m.client.NumLEDS),
-		},
+func initClients(leds int) {
+	// Define all clients to have a default color dictate.
+	// White is used to test all LEDs quickly.
+	for _, c := range Clients {
+		c.CurrentColor = &Resp{}
+		c.NumLEDS = leds
+		if err := c.SetColor(&[]ColorElement{{
+			Steps:  1,
+			Colors: returnAllOneColor(0xFFFFFF, c.NumLEDS)},
+		}, 1); err != nil {
+			log.Errorf("failed to SetColor for client: %s: %v", c.Name, err)
+		}
 	}
-}
-
-// updateBasic picks a random color to select from and applies it statically to the client.
-func (m *miniXmas) updateBasic(w http.ResponseWriter, r *http.Request) {
-	if len(m.reqUrlSplit) != 4 {
-		log.Errorf("invalid url: %s", r.URL.Path)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	// Get the client id from the url.
-	id := m.reqUrlSplit[3]
-	var ok bool
-	m.client, ok = Clients.Search(id)
-	if !ok {
-		log.Errorf("unknown client id: %s", id)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	// Pick a random color to dictate to the client.
-	m.client.SetColor(m.pickDictate())
-	log.Infof("Updated client: %s id: %s with color: %v", m.client.Name, id, m.client.CurrentColor.Data)
-}
-
-// ClientMap is a map of all the clients, identified by their MAC address.
-// Also contains a few useful functions for working with the map.
-type ClientMap map[string]*Client
-
-// Search searches the ClientMap for a client with the given name.
-// The name here is case-insensitive.
-func (c ClientMap) Search(name string) (*Client, bool) {
-	out, ok := c[strings.ToLower(name)]
-	return out, ok
-}
-
-type Client struct {
-	// Name is a user friendly name for the client
-	Name string
-	// Loc is the location of the client
-	Loc location
-	// CurrentColor is the current color of the client
-	CurrentColor *Resp
-	// NumLEDS is the number of LEDs in the client.
-	// Standard format is the density of the LED strip * length
-	NumLEDS int
-	// CurrentColorJSON is the current color of the client marshalled into JSON format.
-	// This is exactly what is returned to the client when they request a status update.
-	CurrentColorJSON *string
-}
-
-func (c *Client) SetColor(cElem *[]ColorElement) {
-	c.CurrentColor.Data = cElem
-	c.CurrentColor.TS = time.Now().UnixNano()
-	jsonOut, err := json.Marshal(c.CurrentColor)
-	if err != nil {
-		log.Errorf("failed to marshal color: %v", err)
-		return
-	}
-	jsonOutStr := string(jsonOut)
-	c.CurrentColorJSON = &jsonOutStr
 }
 
 func main() {
@@ -412,15 +465,10 @@ func main() {
 		log.Fatalf("failed to create handler: %v", err)
 	}
 
-	// Define all clients to have a default color dictate.
-	// White is used to test all LEDs quickly.
-	for _, c := range Clients {
-		c.CurrentColor = &Resp{}
-		c.SetColor(&[]ColorElement{{
-			Steps:  1,
-			Colors: returnAllOneColor(0xFFFFFF, c.NumLEDS)},
-		})
-	}
+	// Initialize the client data structures.
+	initClients(ledCount)
+
+	go h.clientIdleUpdate(idleTime)
 
 	// Start a goroutine that will force a change
 
@@ -429,12 +477,4 @@ func main() {
 		Handler: h,
 	}
 	log.Fatal(s.ListenAndServe())
-}
-
-func returnAllOneColor(color RGBColor, numLEDS int) *Colors {
-	cs := Colors{}
-	for i := 0; i < numLEDS; i++ {
-		cs = append(cs, color)
-	}
-	return &cs
 }

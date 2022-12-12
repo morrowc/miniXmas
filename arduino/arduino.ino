@@ -3,6 +3,7 @@
 // URL.
 #include <string.h>
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include "FastLED.h"
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
@@ -14,21 +15,21 @@
 #endif
 
 #define DATA_PIN    2
-// #define CLK_PIN   4
 #define LED_TYPE    NEOPIXEL
 #define COLOR_ORDER RGB
-#define NUM_LEDS    150
+#define NUM_LEDS    30
 #define BRIGHTNESS  200
+#define  ARDUINOJSON_USE_LONG_LONG 1
 
 const char* URL = "http://mailserver.ops-netman.net:6789/status";
 const char* SSID = "theaternet";
 const char* PASS = "network123";
 // Delay betwen web requests and possible change to lights.
-const unsigned long DELAY = 100;
+const unsigned long DELAY = 1000;
 // The delimiter between reply parts from the controller.
 const char* DELIMITER = ", ";
 // The current timestamp value from the previous controller reply.
-String CURRENT = "";
+long long CURRENT = 0;
 // The ID of this board, it's MacAddress.
 String ID = "";
 
@@ -49,6 +50,7 @@ void setup() {
   // Connect to wifi, as a station.
   WiFi.mode(WIFI_STA);
   WiFi.begin(SSID, PASS);
+  delay(5000); // 5 second delay for recovery
   Serial.println("connected to wifi");
   if ((WiFi.status() == WL_CONNECTED)) {
     WiFi.printDiag(Serial);
@@ -64,96 +66,102 @@ void setup() {
   FastLED.setBrightness(BRIGHTNESS);
 }
 
-void loop()
-{
-  int st = millis();
-  Serial.printf("Millis: %d\n", st);
-  Serial.println();
+// Handle sending a request to the http server, return the raw payload.
+String doHttp(char* url) {
   // Create an http client in this version of the loop, collect data from
   // remote server.
   WiFiClient client;
   HTTPClient http;
-  char* url;
-  sprintf(url, "%s?leds=%d&id=%s&len=%d", URL, NUM_LEDS, ID, DELAY);
-  // Set the default dictate to 'rainbow'.
-  String DICTATE = "rainbow";
-
-  // Serial.println();
-  // Serial.println("Starting http client request");
   http.begin(client, url);
   int httpResponseCode = http.GET();
   if (httpResponseCode>0) {
-    // Serial.printf("HTTP Response Code: %d\r\n", httpResponseCode);
-    String payload = http.getString();
-    // Serial.println(payload);
-    // Convert payload from String to char[] and from char[] to char*.
-    int n = payload.length();
-    char p_array[n + 1];
-    strcpy(p_array, payload.c_str());
-    TOTAL_INTERVALS++;
-    WAIT_TIME += (millis() - st);
-    Serial.printf("%d / %d == %d\n", WAIT_TIME, TOTAL_INTERVALS, WAIT_TIME / TOTAL_INTERVALS);
-
-    // Use strtok() to tokenize the http payload.
-    // First token should be the timestamp, second is the dictate.
-    char *token = strtok(&p_array[0], DELIMITER);
-    if ( token != NULL ) {
-      // Convert token to String.
-      String sToken(token);
-      if ( !sToken.equals(CURRENT) ) {
-        CURRENT = sToken;
-        token = strtok(NULL, DELIMITER);
-        if ( token != NULL ) { DICTATE = token; }
-        DICTATE.trim();
-        // Serial.printf("\nTS: %s Dictate: %s\n", CURRENT.c_str(), DICTATE);
-        // Serial.println();
-        // Display single color for now.
-        // fill_rainbow(leds, NUM_LEDS, 0, 5);
-        CRGB::HTMLColorCode color;
-        if (strcmp(DICTATE.c_str(), "red") == 0 ) {
-          color = CRGB::Red;
-          // Serial.println("Reset color to red");
-        } else if (strcmp(DICTATE.c_str(), "orange") == 0 ) {
-          color = CRGB::Orange;
-          // Serial.println("Reset color to orange");
-        } else if (strcmp(DICTATE.c_str(), "yellow") == 0) {
-          color = CRGB::Yellow;
-          // Serial.println("Reset color to yellow");
-        } else if (strcmp(DICTATE.c_str(), "green") == 0) {
-          color = CRGB::Green;
-          // Serial.println("Reset color to green");
-        } else if (strcmp(DICTATE.c_str(), "blue") == 0) {
-          color = CRGB::Blue;
-          // Serial.println("Reset color to blue");
-        } else if (strcmp(DICTATE.c_str(), "indigo") == 0) {
-          color = CRGB::Indigo;
-          // Serial.println("Reset color to indigo");
-        } else if (strcmp(DICTATE.c_str(), "violet") == 0) {
-          color = CRGB::Violet;
-          // Serial.println("Reset color to violet");
-        } else {
-          color = CRGB::Red;
-          // Serial.println("Reset color to default red");
-        }
-        for (int i = 0; i < NUM_LEDS; i++) {
-            leds[i] = color;
-            FastLED.show();
-        }
-        Serial.println();
-      }
-    }
-  } else {
-    // 
-    pride();
-    delay(1000);
-    // FastLED.show();  
+    // Get the payload as a String()
+    return http.getString();
   }
-  // Delay until after the reuqired wait period between changes ocurs.
-  while ( (st + millis()) < DELAY ) {
-    Serial.println("delaying");
-  }
+  return String("");
 }
 
+void loop()
+{
+  int st = millis();
+  Serial.printf("Millis: %d", st);
+  Serial.println();
+  char url[strlen(URL)+50];
+  sprintf(url, "%s?id=%s&leds=%d&len=%d", URL, ID.c_str(), NUM_LEDS, DELAY);
+
+  // Set the default dictate to 'rainbow'.
+  String DICTATE = "rainbow";
+  String  payload = doHttp(url);
+  // Determine how long the payload is.
+  if (payload.length() == 0) {
+    Serial.println("Got zero length HTTP reply");
+    Serial.println();
+    checkDelay(st);
+    return;
+  }
+
+  // Create a JSON Document, and deserialize payload into that.
+  StaticJsonDocument<10000> doc;
+
+  DeserializationError error = deserializeJson(doc, payload);
+
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    checkDelay(st);
+    return;
+  }
+
+  long long TS = doc["TS"]; // 1670710298274952000
+  if (CURRENT != TS) {
+    CURRENT = TS;
+  } else {
+    Serial.print("no change in TimeStamp");
+    Serial.println();
+    checkDelay(st);
+    return;
+  }
+
+  TOTAL_INTERVALS++;
+  WAIT_TIME += (millis() - st);
+  Serial.printf("%d / %d == %d", WAIT_TIME, TOTAL_INTERVALS,
+    WAIT_TIME / TOTAL_INTERVALS);
+  Serial.println();
+
+  // Handle each step, with a request to the HTTP service at
+  // each step start.
+  /*
+   * Example data.
+  {
+   "TS":1670778488327762396,
+   "Data":[
+      {
+         "Steps":0,
+         "Colors":[
+            10145074,
+            10145074,
+            10145074
+            ]
+        }
+    ]
+  }
+  */
+  for (s = 0; s < length(doc["Data"][0]); s++) {
+    for (int i = 0; i < NUM_LEDS; i++) {
+        String color = doc["Data"][0]["Colors"][i];
+        int cInt = color.toInt();
+        leds[i] = cInt;
+        // Serial.printf("Color: %s Num: %d", color, cInt);
+        FastLED.show();
+    }
+  }
+  // Delay until after the reuqired wait period between changes ocurs.
+  checkDelay(st);
+}
+
+void checkDelay(int st) {
+  while ( (millis() - st) < DELAY ) {}
+}
 
 // This function draws rainbows with an ever-changing,
 // widely-varying set of parameters.
