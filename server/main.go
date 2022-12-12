@@ -14,6 +14,7 @@ import (
 	"time"
 
 	log "github.com/golang/glog"
+	"github.com/lucasb-eyer/go-colorful"
 )
 
 const (
@@ -219,6 +220,19 @@ type RGBTimeRequest struct {
 	}
 }
 
+type HSVTimeRequest struct {
+	Steps []struct {
+		// Color is the color to set the LED strip to.
+		Color struct {
+			H int `json:"h"`
+			S int `json:"s"`
+			V int `json:"v"`
+		} `json:"color"`
+		// Time is the time in milliseconds to transition to the new color.
+		Time int `json:"time"`
+	}
+}
+
 // Search searches the ClientMap for a client with the given name.
 // The name here is case-insensitive.
 func clientSearch(name string, c map[string]*Client) (*Client, bool) {
@@ -396,18 +410,83 @@ func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	case "rgbtime":
 		// Sets color from JSON response, using hex color values and time in ms.
 		h.updateRGBTime(w, r, reqUrlSplit)
+	case "hsvtime":
+		// Sets color from JSON response, using HSV color values and time in ms.
+		h.updateHSVTime(w, r, reqUrlSplit)
+	default:
+		log.Errorf("invalid url: %s", r.URL.Path)
+		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 }
 
-func (h *handler) updateRGBTime(w http.ResponseWriter, r *http.Request, reqUrlSplit []string) {
-	if len(reqUrlSplit) != 4 {
+// updateHSVTime takes an incoming request and updates the current color element and steps.
+func (h *handler) updateHSVTime(w http.ResponseWriter, r *http.Request, reqURLSplit []string) {
+	if len(reqURLSplit) != 4 {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "invalid url: %s", r.URL.Path)
 		return
 	}
 
 	// Get the client id from the url.
-	id := reqUrlSplit[3]
+	id := reqURLSplit[3]
+	var ok bool
+	client, ok := clientSearch(id, h.clients)
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "unknown client id: %s", r.URL.Path)
+		return
+	}
+
+	// Read the request body.
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Errorf("failed to read request body: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Unmarshal the request body into a color dictate.
+	var req HSVTimeRequest
+	err = json.Unmarshal(body, &req)
+	if err != nil {
+		log.Errorf("failed to unmarshal request body: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Convert request to color element
+	var colors []ColorElement
+	for _, step := range req.Steps {
+		// convert time to steps
+		steps := step.Time / client.StepLen
+
+		// convert HSV to RGB
+		r, g, b := colorful.Hsv(float64(step.Color.H), float64(step.Color.S), float64(step.Color.V)).RGB255()
+		colors = append(colors, ColorElement{
+			Colors: returnAllOneColor(RGBColor((int)(r)<<16|(int)(g)<<8|(int)(b)), client.NumLEDS),
+			Steps:  steps,
+		})
+	}
+
+	err = client.SetColor(&colors, time.Now().UnixNano())
+	if err != nil {
+		log.Errorf("failed to set color: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "failed to set color: %v", err)
+		return
+	}
+}
+
+func (h *handler) updateRGBTime(w http.ResponseWriter, r *http.Request, reqURLSplit []string) {
+	if len(reqURLSplit) != 4 {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "invalid url: %s", r.URL.Path)
+		return
+	}
+
+	// Get the client id from the url.
+	id := reqURLSplit[3]
 	var ok bool
 	client, ok := clientSearch(id, h.clients)
 	if !ok {
@@ -440,7 +519,6 @@ func (h *handler) updateRGBTime(w http.ResponseWriter, r *http.Request, reqUrlSp
 	for _, c := range reqColors.Steps {
 		// convert time to steps
 		steps := c.Time / client.StepLen
-		// might not be the brightest idea to iterate over every color individually,
 
 		colors = append(colors, ColorElement{
 			Colors: returnAllOneColor(RGBColor(c.Color), client.NumLEDS),

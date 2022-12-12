@@ -76,15 +76,16 @@ function sendReq() {
     var timeSelects = document.getElementsByClassName("timeSelectBox");
     var times = [];
     for (var i = 0; i < timeSelects.length; i++) {
-        times.push(timeSelects[i].value);
+        times.push(timeSelects[i].children[0].value);
     }
+    console.log(timeSelects)
     var colors = colorPicker.colors;
     var data = {Steps: []};
     for (var i = 0; i < colors.length; i++) {
         data.Steps.push({time: times[i]*500, color: colors[i]});
     }
     var xhr = new XMLHttpRequest();
-    xhr.open("POST", "update/rgbtime/"+document.getElementById("clientSelectBox").value, true);
+    xhr.open("POST", "update/hsvtime/"+document.getElementById("clientSelectBox").value, true);
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.send(JSON.stringify(data));
 }
