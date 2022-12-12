@@ -27,9 +27,9 @@ const char* PASS = "network123";
 // Delay betwen web requests and possible change to lights.
 const unsigned long DELAY = 1000;
 // Send the light back/forth like a cylon.
-const int CYLON_DELAY = 30;
+const int CYLON_DELAY = 100;
 // For how many cylces to be a cylon?
-const int CYCLES = 25;
+const int CYCLES = 10;
 // The delimiter between reply parts from the controller.
 const char* DELIMITER = ", ";
 // The current timestamp value from the previous controller reply.
