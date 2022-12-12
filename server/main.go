@@ -414,6 +414,7 @@ func (h *handler) pickDictate(client *Client) *[]ColorElement {
 
 	return &[]ColorElement{
 		{
+			Steps:  1,
 			Colors: returnAllOneColor(color, client.NumLEDS),
 		},
 	}
