@@ -228,9 +228,12 @@ type Client struct {
 	CurrentColorJSON *string
 }
 
-func (c *Client) SetColor(cElem *[]ColorElement) error {
+func (c *Client) SetColor(cElem *[]ColorElement, ts int64) error {
 	c.CurrentColor.Data = cElem
-	c.CurrentColor.TS = time.Now().UnixNano()
+	c.CurrentColor.TS = ts
+	if ts == 0 {
+		c.CurrentColor.TS = time.Now().UnixNano()
+	}
 	jsonOut, err := json.Marshal(c.CurrentColor)
 	if err != nil {
 		return fmt.Errorf("failed to marshal color: %v", err)
@@ -301,7 +304,7 @@ func (h *handler) clientIdleUpdate(t time.Duration) {
 		for _, client := range h.clients {
 			if time.Now().UnixNano()-client.CurrentColor.TS > t.Nanoseconds() {
 				log.Infof("Setting new color for client: %s", client.Name)
-				if err := client.SetColor(h.pickDictate(client)); err != nil {
+				if err := client.SetColor(h.pickDictate(client), 0); err != nil {
 					log.Errorf("failed to SetColor for client %s: %v", client.Name, err)
 				}
 			}
@@ -396,7 +399,7 @@ func (h *handler) updateBasic(w http.ResponseWriter, r *http.Request, reqUrlSpli
 	}
 
 	// Pick a random color to dictate to the client.
-	if err := client.SetColor(h.pickDictate(client)); err != nil {
+	if err := client.SetColor(h.pickDictate(client), 0); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "failed to SetColor for client: %s", r.URL.Path)
 	}
@@ -446,7 +449,7 @@ func initClients(leds int) {
 		if err := c.SetColor(&[]ColorElement{{
 			Steps:  1,
 			Colors: returnAllOneColor(0xFFFFFF, c.NumLEDS)},
-		}); err != nil {
+		}, 0); err != nil {
 			log.Errorf("failed to SetColor for client: %s: %v", c.Name, err)
 		}
 	}
