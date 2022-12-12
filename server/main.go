@@ -194,7 +194,6 @@ var (
 			NumLEDS: ledCount,
 			StepLen: 100,
 		},
-		// Placeholder MAC address for the gutter towards the kitchen
 		"8c:aa:b5:7a:bc:ad": &Client{
 			Name:    "Gutter Kitchen",
 			Loc:     GUTTER,
