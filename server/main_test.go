@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestIndex(t *testing.T) {
@@ -94,7 +96,7 @@ func TestUpdate(t *testing.T) {
 		}
 
 		// Init client content, so to avoid panic.
-		initClients()
+		initClients(2)
 
 		// ResponseRecorer, satisfy http.ResponseWriter to record the response.
 		rr := httptest.NewRecorder()
@@ -124,15 +126,14 @@ func TestUpdate(t *testing.T) {
 // Status url: /status?id=8C:AA:B5:7A:BC:AD&leds=10&len=500
 func TestStatus(t *testing.T) {
 	tests := []struct {
-		desc       string
-		reqStr     string
-		wantPrefix string
-		wantCode   int
+		desc     string
+		reqStr   string
+		want     string
+		wantCode int
 	}{{
-		desc:       "/status no id",
-		reqStr:     "/status",
-		wantPrefix: "success SetColor",
-		wantCode:   http.StatusBadRequest,
+		desc:     "/status no id",
+		reqStr:   "/status",
+		wantCode: http.StatusBadRequest,
 	}, {
 		desc:     "/status invalid LED count",
 		reqStr:   "/status?id=8C:AA:B5:7A:BC:AD&leds=ten",
@@ -145,6 +146,11 @@ func TestStatus(t *testing.T) {
 		desc:     "/status unknown client",
 		reqStr:   "/status?id=C8:AA:B5:7A:BC:DA&leds=10&len=500",
 		wantCode: http.StatusBadRequest,
+	}, {
+		desc:     "/status known client expect good output.",
+		reqStr:   "/status?id=8C:AA:B5:7A:BC:AD&leds=2&len=10",
+		wantCode: http.StatusOK,
+		want:     `{"TS":1670808464406994837,"Data":[{"Steps":1,"Colors":[16777215,16777215]}]}`,
 	}}
 
 	for _, test := range tests {
@@ -155,7 +161,7 @@ func TestStatus(t *testing.T) {
 		}
 
 		// Init client content, so to avoid panic.
-		initClients()
+		initClients(2)
 
 		// ResponseRecorer, satisfy http.ResponseWriter to record the response.
 		rr := httptest.NewRecorder()
@@ -174,9 +180,9 @@ func TestStatus(t *testing.T) {
 
 		// Validate that the start of the reply is as expected, only if the request was ok.
 		if rr.Code == http.StatusOK {
-			if !strings.HasPrefix(rr.Body.String(), test.wantPrefix) {
-				t.Errorf("[%v]: got/want mismatch:\n\twant: %s\n\tgot: %s",
-					test.desc, test.wantPrefix, rr.Body.String())
+			if diff := cmp.Diff(rr.Body.String(), test.want); diff != "" {
+				t.Errorf("[%v]: got/want mismatch got+/want-): %s",
+					test.desc, diff)
 			}
 		}
 	}

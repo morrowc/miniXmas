@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	ledCont = 5000
+	ledCount = 5
 
 	// List of locations with to organize their clients
 	GUTTER = 0
@@ -189,19 +189,19 @@ var (
 		"8c:aa:b5:7a:7d:13": &Client{
 			Name:    "Test Client",
 			Loc:     TEST,
-			NumLEDS: 30 * 5,
+			NumLEDS: ledCount,
 		},
 		// Placeholder MAC address for the gutter towards the kitchen
 		"8c:aa:b5:7a:bc:ad": &Client{
 			Name:    "Gutter Kitchen",
 			Loc:     GUTTER,
-			NumLEDS: 30 * 5,
+			NumLEDS: ledCount,
 		},
 		// Placeholder MAC address for the gutter towards the TV room
 		"8c:aa:b5:7a:7d:15": &Client{
 			Name:    "Gutter TV Room",
 			Loc:     GUTTER,
-			NumLEDS: 30 * 5,
+			NumLEDS: ledCount,
 		},
 	}
 )
@@ -437,11 +437,12 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func initClients() {
+func initClients(leds int) {
 	// Define all clients to have a default color dictate.
 	// White is used to test all LEDs quickly.
 	for _, c := range Clients {
 		c.CurrentColor = &Resp{}
+		c.NumLEDS = leds
 		if err := c.SetColor(&[]ColorElement{{
 			Steps:  1,
 			Colors: returnAllOneColor(0xFFFFFF, c.NumLEDS)},
@@ -461,7 +462,7 @@ func main() {
 	}
 
 	// Initialize the client data structures.
-	initClients()
+	initClients(ledCount)
 
 	go h.clientIdleUpdate(idleTime)
 
