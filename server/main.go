@@ -461,9 +461,14 @@ func (h *handler) updateHSVTime(w http.ResponseWriter, r *http.Request, reqURLSp
 		steps := step.Time / client.StepLen
 
 		// convert HSV to RGB
-		r, g, b := colorful.Hsv(float64(step.Color.HSV.H), float64(step.Color.HSV.S), float64(step.Color.HSV.V)).RGB255()
+		r, g, b := colorful.Hsv(
+			float64(step.Color.HSV.H),     // 0-360
+			float64(step.Color.HSV.S)/100, // 0-1 - The javascript reports 0-100.
+			float64(step.Color.HSV.V)/100, // 0-1 - The javascript reports 0-100.
+		).RGB255()
+		c := int(r)<<16 | int(g)<<8 | int(b)
 		colors = append(colors, ColorElement{
-			Colors: returnAllOneColor(RGBColor((int)(r)*65536+(int)(g)*256+(int)(b)), client.NumLEDS),
+			Colors: returnAllOneColor(RGBColor(c), client.NumLEDS),
 			Steps:  steps,
 		})
 	}
