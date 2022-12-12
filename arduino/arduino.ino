@@ -27,9 +27,9 @@ const char* PASS = "network123";
 // Delay betwen web requests and possible change to lights.
 const unsigned long DELAY = 1000;
 // Send the light back/forth like a cylon.
-const int CYLON_DELAY = 30;
+const int CYLON_DELAY = 100;
 // For how many cylces to be a cylon?
-const int CYCLES = 25;
+const int CYCLES = 10;
 // The delimiter between reply parts from the controller.
 const char* DELIMITER = ", ";
 // The current timestamp value from the previous controller reply.
@@ -159,7 +159,6 @@ void loop()
   Serial.println();
   for (int s = 0; s <= arr_size; s++) {
     StaticJsonDocument<10000> data = doc["Data"][s];
-    /*
     for (int i = 0; i < NUM_LEDS; i++) {
         String color = data["Colors"][i];
         int cInt = color.toInt();
@@ -167,11 +166,12 @@ void loop()
         // Serial.printf("Color: %s Num: %d", color, cInt);
         FastLED.show();
     }
-    */
+    /*
     for (int i = 0; i < CYCLES; i++) {
       bot_to_top(data, CYLON_DELAY);
       top_to_bot(data, CYLON_DELAY);
     }
+    */
   }
   // Delay until after the reuqired wait period between changes ocurs.
   checkDelay(st);
