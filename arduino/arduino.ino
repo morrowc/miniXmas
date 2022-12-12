@@ -26,6 +26,7 @@ const char* SSID = "theaternet";
 const char* PASS = "network123";
 // Delay betwen web requests and possible change to lights.
 const unsigned long DELAY = 1000;
+const unsigned long STEP_DELAY = 100;
 // Send the light back/forth like a cylon.
 const int CYLON_DELAY = 100;
 // For how many cylces to be a cylon?
@@ -56,9 +57,7 @@ void setup() {
   WiFi.begin(SSID, PASS);
   delay(5000); // 5 second delay for recovery
   Serial.println("connected to wifi");
-  if ((WiFi.status() == WL_CONNECTED)) {
-    WiFi.printDiag(Serial);
-  }
+  if ((WiFi.status() == WL_CONNECTED)) {}
   
   // Set the ID/mac-addr.
   ID = WiFi.macAddress();
@@ -144,34 +143,42 @@ void loop()
    "TS":1670778488327762396,
    "Data":[
       {
-         "Steps":1,
+         "Steps":2,
          "Colors":[
             10145074,
             10145074,
             10145074
             ]
-        }
+       },
+      {
+         "Steps":2,
+         "Colors":[
+            1231234,
+            1231234,
+            1231234
+            ]
+       }
     ]
   }
   */
-  size_t arr_size = sizeof(doc["Data"]) / sizeof(doc["Data"][0]);
-  Serial.printf("Doc has %d data elements\n", arr_size);
+  size_t arr_size = doc["Data"].size();
   Serial.println();
-  for (int s = 0; s <= arr_size; s++) {
+  for (int s = 0; s < arr_size; s++) {
     StaticJsonDocument<10000> data = doc["Data"][s];
-    for (int i = 0; i < NUM_LEDS; i++) {
-        String color = data["Colors"][i];
-        int cInt = color.toInt();
-        leds[i] = cInt;
-        // Serial.printf("Color: %s Num: %d", color, cInt);
-        FastLED.show();
+    // Collect the period of time to set the intended color.
+    String steps = data["Steps"];
+    int stepsInt = steps.toInt();
+
+    // Loop the number of steps, with DELAY in between.
+    for (int l = 0; l < stepsInt; l++) {
+      for (int i = 0; i < NUM_LEDS; i++) {
+          String color = data["Colors"][i];
+          int cInt = color.toInt();
+          leds[i] = cInt;
+          FastLED.show();
+      }
+      delay(STEP_DELAY);
     }
-    /*
-    for (int i = 0; i < CYCLES; i++) {
-      bot_to_top(data, CYLON_DELAY);
-      top_to_bot(data, CYLON_DELAY);
-    }
-    */
   }
   // Delay until after the reuqired wait period between changes ocurs.
   checkDelay(st);
@@ -187,7 +194,6 @@ void bot_to_top(StaticJsonDocument<1000> data, int cDelay) {
         leds[i+2] = cInt;
         leds[i+3] = cInt;
         leds[i+4] = cInt;
-        // Serial.printf("Color: %s Num: %d", color, cInt);
         FastLED.show();
         leds[i] = 0;
         leds[i+1] = 0;
@@ -208,7 +214,6 @@ void top_to_bot(StaticJsonDocument<1000> data, int cDelay) {
         leds[i-2] = cInt;
         leds[i-3] = cInt;
         leds[i-4] = cInt;
-        // Serial.printf("Color: %s Num: %d", color, cInt);
         FastLED.show();
         leds[i] = 0;
         leds[i-1] = 0;
