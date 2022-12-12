@@ -79,12 +79,12 @@ function sendReq() {
         times.push(timeSelects[i].value);
     }
     var colors = colorPicker.colors;
-    var data = {
-        "times": times,
-        "colors": colors
+    var data = {Steps: []};
+    for (var i = 0; i < colors.length; i++) {
+        data.steps.push({time: times[i]*500, color: colors[i]});
     }
     var xhr = new XMLHttpRequest();
-    xhr.open("POST", "http://localhost:3000/api/leds", true);
+    xhr.open("POST", "update/rgbtime/"+document.getElementById("clientSelectBox").value, true);
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.send(JSON.stringify(data));
 }

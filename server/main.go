@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -190,21 +191,33 @@ var (
 			Name:    "Test Client",
 			Loc:     TEST,
 			NumLEDS: ledCount,
+			StepLen: 100,
 		},
 		// Placeholder MAC address for the gutter towards the kitchen
 		"8c:aa:b5:7a:bc:ad": &Client{
 			Name:    "Gutter Kitchen",
 			Loc:     GUTTER,
 			NumLEDS: ledCount,
+			StepLen: 100,
 		},
 		// Placeholder MAC address for the gutter towards the TV room
 		"8c:aa:b5:7a:7d:15": &Client{
 			Name:    "Gutter TV Room",
 			Loc:     GUTTER,
 			NumLEDS: ledCount,
+			StepLen: 100,
 		},
 	}
 )
+
+type RGBTimeRequest struct {
+	Steps []struct {
+		// Color is the color to set the LED strip to.
+		Color int `json:"color"`
+		// Time is the time in milliseconds to transition to the new color.
+		Time int `json:"time"`
+	}
+}
 
 // Search searches the ClientMap for a client with the given name.
 // The name here is case-insensitive.
@@ -226,6 +239,8 @@ type Client struct {
 	// CurrentColorJSON is the current color of the client marshalled into JSON format.
 	// This is exactly what is returned to the client when they request a status update.
 	CurrentColorJSON *string
+	// StepLen is the time for each step in ms.
+	StepLen int
 }
 
 func (c *Client) SetColor(cElem *[]ColorElement, ts int64) error {
@@ -376,7 +391,69 @@ func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	// switch on the second part of the url to determine the update type.
 	switch reqUrlSplit[2] {
 	case "basic":
+		// Sets random color
 		h.updateBasic(w, r, reqUrlSplit)
+	case "rgbtime":
+		// Sets color from JSON response, using hex color values and time in ms.
+		h.updateRGBTime(w, r, reqUrlSplit)
+	}
+}
+
+func (h *handler) updateRGBTime(w http.ResponseWriter, r *http.Request, reqUrlSplit []string) {
+	if len(reqUrlSplit) != 4 {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "invalid url: %s", r.URL.Path)
+		return
+	}
+
+	// Get the client id from the url.
+	id := reqUrlSplit[3]
+	var ok bool
+	client, ok := clientSearch(id, h.clients)
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "unknown client id: %s", r.URL.Path)
+		return
+	}
+
+	// Read the request body.
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Errorf("failed to read request body: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "failed to read request body: %v", err)
+		return
+	}
+
+	// Unmarshal the request body into the
+	var reqColors RGBTimeRequest
+	err = json.Unmarshal(body, &reqColors)
+	if err != nil {
+		log.Errorf("failed to unmarshal request body: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "failed to unmarshal request body: %v", err)
+		return
+	}
+
+	// Convert request into a color element
+	var colors []ColorElement
+	for _, c := range reqColors.Steps {
+		// convert time to steps
+		steps := c.Time / client.StepLen
+		// might not be the brightest idea to iterate over every color individually,
+
+		colors = append(colors, ColorElement{
+			Colors: returnAllOneColor(RGBColor(c.Color), client.NumLEDS),
+			Steps:  steps,
+		})
+	}
+
+	err = client.SetColor(&colors, time.Now().UnixNano())
+	if err != nil {
+		log.Errorf("failed to set color: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "failed to set color: %v", err)
+		return
 	}
 }
 
@@ -420,13 +497,6 @@ func (h *handler) pickDictate(client *Client) *[]ColorElement {
 	}
 }
 
-// index displays the selections to callers.
-// Response to GET /
-func (h *handler) index(w http.ResponseWriter, r *http.Request) {
-	log.Info("Got index request")
-	fmt.Fprintf(w, "Helo World: %v\n", time.Now())
-}
-
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Infof("Got request for: %v", r.RequestURI)
 	switch {
@@ -435,7 +505,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(r.URL.Path, "/status"):
 		h.status(w, r)
 	case r.URL.Path == "/":
-		h.index(w, r)
+		http.ServeFile(w, r, "src/index.html")
+	case strings.HasPrefix(r.URL.Path, "/static"):
+		http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./src/static/"))))
 	default:
 		w.WriteHeader(http.StatusNotFound)
 	}
