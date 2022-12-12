@@ -159,7 +159,6 @@ void loop()
   Serial.println();
   for (int s = 0; s <= arr_size; s++) {
     StaticJsonDocument<10000> data = doc["Data"][s];
-    /*
     for (int i = 0; i < NUM_LEDS; i++) {
         String color = data["Colors"][i];
         int cInt = color.toInt();
@@ -167,11 +166,12 @@ void loop()
         // Serial.printf("Color: %s Num: %d", color, cInt);
         FastLED.show();
     }
-    */
+    /*
     for (int i = 0; i < CYCLES; i++) {
       bot_to_top(data, CYLON_DELAY);
       top_to_bot(data, CYLON_DELAY);
     }
+    */
   }
   // Delay until after the reuqired wait period between changes ocurs.
   checkDelay(st);
