@@ -81,7 +81,7 @@ function sendReq() {
     var colors = colorPicker.colors;
     var data = {Steps: []};
     for (var i = 0; i < colors.length; i++) {
-        data.steps.push({time: times[i]*500, color: colors[i]});
+        data.Steps.push({time: times[i]*500, color: colors[i]});
     }
     var xhr = new XMLHttpRequest();
     xhr.open("POST", "update/rgbtime/"+document.getElementById("clientSelectBox").value, true);
