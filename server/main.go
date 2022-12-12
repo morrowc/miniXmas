@@ -25,7 +25,7 @@ const (
 	TEST   = 1
 
 	// Period of time between stagnant light coloration.
-	idleTime = 5 * time.Second
+	idleTime = 120 * time.Second
 )
 
 var (
