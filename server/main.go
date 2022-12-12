@@ -507,7 +507,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == "/":
 		http.ServeFile(w, r, "src/index.html")
 	case strings.HasPrefix(r.URL.Path, "/static"):
-		http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./src/static/"))))
+		// Serve static files.
+		http.StripPrefix("/static/", http.FileServer(http.Dir("src/static"))).ServeHTTP(w, r)
 	default:
 		w.WriteHeader(http.StatusNotFound)
 	}

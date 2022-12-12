@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,20 +12,24 @@ import (
 
 func TestIndex(t *testing.T) {
 	tests := []struct {
-		desc       string
-		reqStr     string
-		wantPrefix string
-		wantCode   int
+		desc     string
+		reqStr   string
+		wantFile string
+		wantCode int
 	}{{
-		desc:       "Index /",
-		reqStr:     "/",
-		wantPrefix: "Helo World: ",
-		wantCode:   http.StatusOK,
+		desc:     "Index /",
+		reqStr:   "/",
+		wantFile: "./src/index.html",
+		wantCode: http.StatusOK,
 	}, {
-		desc:       "Index /foobar",
-		reqStr:     "/foobar",
-		wantPrefix: "Helo World: ",
-		wantCode:   http.StatusNotFound,
+		desc:     "JS /static/colorpicker.js",
+		reqStr:   "/static/colorpicker.js",
+		wantFile: "./src/static/colorpicker.js",
+		wantCode: http.StatusOK,
+	}, {
+		desc:     "Index /foobar",
+		reqStr:   "/foobar",
+		wantCode: http.StatusNotFound,
 	}}
 
 	for _, test := range tests {
@@ -49,10 +54,14 @@ func TestIndex(t *testing.T) {
 				test.desc, status, test.wantCode)
 		}
 
-		// Validate that the start of the reply is as expected, only if the request was ok.
-		if rr.Code == http.StatusOK {
-			if !strings.HasPrefix(rr.Body.String(), test.wantPrefix) {
-				t.Errorf("[%v]: got/want mismatch:\n\twant: %s\n\tgot: %s", test.desc, test.wantPrefix, rr.Body.String())
+		// Check if the response is as expected if we have a file to compare to.
+		if test.wantFile != "" {
+			want, err := ioutil.ReadFile(test.wantFile)
+			if err != nil {
+				t.Fatalf("[%v]: failed to read file: %v", test.desc, err)
+			}
+			if diff := cmp.Diff(rr.Body.String(), string(want)); diff != "" {
+				t.Errorf("[%v]: got/want mismatch (-got +want):\n%s", test.desc, diff)
 			}
 		}
 	}
