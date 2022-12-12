@@ -26,6 +26,10 @@ const char* SSID = "theaternet";
 const char* PASS = "network123";
 // Delay betwen web requests and possible change to lights.
 const unsigned long DELAY = 1000;
+// Send the light back/forth like a cylon.
+const int CYLON_DELAY = 30;
+// For how many cylces to be a cylon?
+const int CYCLES = 50;
 // The delimiter between reply parts from the controller.
 const char* DELIMITER = ", ";
 // The current timestamp value from the previous controller reply.
@@ -81,13 +85,17 @@ String doHttp(char* url) {
   return String("");
 }
 
+void checkDelay(int st) {
+  while ( (millis() - st) < DELAY ) {}
+}
+
 void loop()
 {
   int st = millis();
   Serial.printf("Millis: %d", st);
   Serial.println();
   char url[strlen(URL)+50];
-  sprintf(url, "%s?id=%s&leds=%d&len=%d", URL, ID.c_str(), NUM_LEDS, DELAY);
+  sprintf(url, "%s?id=%s&leds=%d&len=%d", URL, WiFi.macAddress().c_str(), NUM_LEDS, DELAY);
 
   // Set the default dictate to 'rainbow'.
   String DICTATE = "rainbow";
@@ -136,7 +144,7 @@ void loop()
    "TS":1670778488327762396,
    "Data":[
       {
-         "Steps":0,
+         "Steps":1,
          "Colors":[
             10145074,
             10145074,
@@ -146,63 +154,67 @@ void loop()
     ]
   }
   */
-  for (s = 0; s < length(doc["Data"][0]); s++) {
+  size_t arr_size = sizeof(doc["Data"]) / sizeof(doc["Data"][0]);
+  Serial.printf("Doc has %d data elements\n", arr_size);
+  Serial.println();
+  for (int s = 0; s <= arr_size; s++) {
+    StaticJsonDocument<10000> data = doc["Data"][s];
+    /*
     for (int i = 0; i < NUM_LEDS; i++) {
-        String color = doc["Data"][0]["Colors"][i];
+        String color = data["Colors"][i];
         int cInt = color.toInt();
         leds[i] = cInt;
         // Serial.printf("Color: %s Num: %d", color, cInt);
         FastLED.show();
+    }
+    */
+    for (int i = 0; i < CYCLES; i++) {
+      bot_to_top(data, CYLON_DELAY);
+      top_to_bot(data, CYLON_DELAY);
     }
   }
   // Delay until after the reuqired wait period between changes ocurs.
   checkDelay(st);
 }
 
-void checkDelay(int st) {
-  while ( (millis() - st) < DELAY ) {}
+void bot_to_top(StaticJsonDocument<1000> data, int cDelay) {
+    // Chase 5 at a time down the pipe.
+    for (int i = 0; i < NUM_LEDS; i += 5) {
+        String color = data["Colors"][i];
+        int cInt = color.toInt();
+        leds[i] = cInt;
+        leds[i+1] = cInt;
+        leds[i+2] = cInt;
+        leds[i+3] = cInt;
+        leds[i+4] = cInt;
+        // Serial.printf("Color: %s Num: %d", color, cInt);
+        FastLED.show();
+        leds[i] = 0;
+        leds[i+1] = 0;
+        leds[i+2] = 0;
+        leds[i+3] = 0;
+        leds[i+4] = 0;
+        delay(cDelay);
+   }
 }
 
-// This function draws rainbows with an ever-changing,
-// widely-varying set of parameters.
-void pride() 
-{
-  static uint16_t sPseudotime = 0;
-  static uint16_t sLastMillis = 0;
-  static uint16_t sHue16 = 0;
- 
-  uint8_t sat8 = beatsin88( 87, 220, 250);
-  uint8_t brightdepth = beatsin88( 341, 96, 224);
-  uint16_t brightnessthetainc16 = beatsin88( 203, (25 * 256), (40 * 256));
-  uint8_t msmultiplier = beatsin88(147, 23, 60);
-
-  uint16_t hue16 = sHue16;//gHue * 256;
-  uint16_t hueinc16 = beatsin88(113, 1, 3000);
-  
-  uint16_t ms = millis();
-  uint16_t deltams = ms - sLastMillis ;
-  sLastMillis  = ms;
-  sPseudotime += deltams * msmultiplier;
-  sHue16 += deltams * beatsin88( 400, 5,9);
-  uint16_t brightnesstheta16 = sPseudotime;
-  
-  for( uint16_t i = 0 ; i < NUM_LEDS; i++) {
-    hue16 += hueinc16;
-    uint8_t hue8 = hue16 / 256;
-
-    brightnesstheta16  += brightnessthetainc16;
-    uint16_t b16 = sin16( brightnesstheta16  ) + 32768;
-
-    uint16_t bri16 = (uint32_t)((uint32_t)b16 * (uint32_t)b16) / 65536;
-    uint8_t bri8 = (uint32_t)(((uint32_t)bri16) * brightdepth) / 65536;
-    bri8 += (255 - brightdepth);
-    
-    CRGB newcolor = CHSV( hue8, sat8, bri8);
-    
-    uint16_t pixelnumber = i;
-    pixelnumber = (NUM_LEDS-1) - pixelnumber;
-    
-    nblend( leds[pixelnumber], newcolor, 64);
-  }
+void top_to_bot(StaticJsonDocument<1000> data, int cDelay) {
+    // Chase 5 at a time down the pipe.
+    for (int i = NUM_LEDS; i > 0; i -= 5) {
+        String color = data["Colors"][i];
+        int cInt = color.toInt();
+        leds[i] = cInt;
+        leds[i-1] = cInt;
+        leds[i-2] = cInt;
+        leds[i-3] = cInt;
+        leds[i-4] = cInt;
+        // Serial.printf("Color: %s Num: %d", color, cInt);
+        FastLED.show();
+        leds[i] = 0;
+        leds[i-1] = 0;
+        leds[i-2] = 0;
+        leds[i-3] = 0;
+        leds[i-4] = 0;
+        delay(cDelay);
+   }
 }
-
