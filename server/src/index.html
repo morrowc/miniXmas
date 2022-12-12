@@ -1,0 +1,37 @@
+
+<html>
+    <head>
+        <script src="https://cdn.jsdelivr.net/npm/@jaames/iro@5"></script>
+        <script src="colorpicker.js"></script>
+        <link rel="stylesheet" type="text/css" href="index.css"></link>
+    </head>
+    <body>
+      <div id="numSelect"> 
+        <span>Number of Colors:</span>
+        <input type="number" id="numColorBox"> 
+        <input id="numSelectButton" type="button" value="Next" onclick="numColorSelect();" />
+      </div>
+      <div style="display:none" id="wrap" class="wrap">
+        <div class="half">
+          <div class="colorPicker"></div>
+        </div>
+        <div class="half">
+          <span>Colors:</span>
+          <ul id="colorList"></ul>
+          <span>Active Color:</span>
+          <div id="activeColor"></div>
+        </div>
+        <!--Ask the user for how long should each color be shown, in tenth of a second increments-->
+        <div>
+            <span>Time per Color (in tenths of a second):</span>
+            <div id="timeSelects"></div>
+                <div id="timeSelectDiv"  style="display:none">
+                    <input type="number"><br>
+                </div>
+            </div>
+            <input id="sendSelectButton" type="button" value="Send!" onclick="sendReq();" />
+        </div>
+      </div>
+    </body>
+  </html>
+  
