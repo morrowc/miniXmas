@@ -4,20 +4,22 @@
 #include <string.h>
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include "FastLED.h"
+// #include "FastLED.h"
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
 #include <ESP8266HTTPClient.h>
 #include <WiFiClient.h>
 
+/*
 #if FASTLED_VERSION < 3001000
 #error "Requires FastLED 3.1 or later; check github for latest code."
 #endif
+*/
 
 #define DATA_PIN    2
 #define LED_TYPE    NEOPIXEL
 #define COLOR_ORDER RGB
-#define NUM_LEDS    30
+#define NUM_LEDS    150
 #define BRIGHTNESS  200
 #define  ARDUINOJSON_USE_LONG_LONG 1
 
@@ -36,8 +38,150 @@ const char* DELIMITER = ", ";
 // The current timestamp value from the previous controller reply.
 long long CURRENT = 0;
 // The Array of LEDs to control.
-CRGB leds[NUM_LEDS];
+// CRGB leds[NUM_LEDS];
 
+// From github.com/bigjosh/SimpleNeoPixelDemo/SimpleNeoPixelTimingTester
+// These values are for digital pin 8 on an Arduino Yun or digital pin 12 on a DueMilinove
+// Note that you could also include the DigitalWriteFast header file to not need to to this lookup.
+
+#define PIXEL_PORT DATA_PIN  // Port of the pin the pixels are connected to
+#define PIXEL_DDR   0   // Port of the pin the pixels are connected to
+#define PIXEL_BIT   4      // Bit of the pin the pixels are connected to
+
+// These are the timing constraints taken mostly from the WS2812 datasheet 
+
+#define T1H  700    // Width of a 1 bit in ns
+#define T1L  600    // Width of a 1 bit in ns
+
+#define T0H  350    // Width of a 0 bit in ns
+#define T0L  800    // Width of a 0 bit in ns
+
+#define RES 6000    // Width of the low gap between bits to cause a frame to latch
+
+// Here are some convience defines for using nanoseconds specs to generate actual CPU delays
+
+// Note that this has to be SIGNED since we want to be able to check for negative values of derivatives
+#define NS_PER_SEC (1000000000L)        
+
+#define CYCLES_PER_SEC (F_CPU)
+
+#define NS_PER_CYCLE ( NS_PER_SEC / CYCLES_PER_SEC )
+
+#define NS_TO_CYCLES(n) ( (n) / NS_PER_CYCLE )
+
+// Make sure we never have a delay less than zero
+#define DELAY_CYCLES(n) ( ((n)>0) ? __builtin_avr_delay_cycles( n ) :  __builtin_avr_delay_cycles( 0 ) ) 
+
+
+void  sendBit(bool) __attribute__ ((optimize(0)));
+
+void sendBit( bool bitVal ) {
+    if (  bitVal ) {
+      bitSet(PIXEL_PORT, PIXEL_BIT);
+      // 1-bit width less  overhead  for the actual bit setting
+      DELAY_CYCLES(NS_TO_CYCLES(T1H) - 2);
+      bitClear(PIXEL_PORT, PIXEL_BIT);
+      // 1-bit gap less the overhead of the loop
+      DELAY_CYCLES(NS_TO_CYCLES(T1L) - 10);
+    } else {
+      // 0-bit width less overhead
+      bitSet(PIXEL_PORT, PIXEL_BIT);
+      DELAY_CYCLES(NS_TO_CYCLES(T0H) - 2);
+      // **************************************************************************
+      // This line is really the only tight goldilocks timing in the whole program!
+      // **************************************************************************
+      bitClear(PIXEL_PORT, PIXEL_BIT);
+      // 0-bit gap less overhead of the loop
+      DELAY_CYCLES(NS_TO_CYCLES(T0L) - 10);
+    }
+    /*
+    * Note that the inter-bit gap can be as long as you want as long as it
+    * doesn't exceed the 5us reset timeout (which is A long time). Here I
+    * have been generous and not tried to squeeze the gap tight but instead
+    * erred on the side of lots of extra time. This has thenice side effect
+    * of avoid glitches on very long strings becuase 
+    */
+}  
+
+void sendByte( unsigned char byte ) {
+
+    for( unsigned char bit = 0 ; bit < 8 ; bit++ ) {
+
+      sendBit( bitRead( byte , 7 ) );                // Neopixel wants bit in highest-to-lowest order
+                                                     // so send highest bit (bit #7 in an 8-bit byte since they start at 0)
+      byte <<= 1;                                    // and then shift left so bit 6 moves into 7, 5 moves into 6, etc
+
+    }
+}
+
+/*
+  The following three functions are the public API:
+  
+  ledSetup() - set up the pin that is connected to the string. Call once at the begining of the program.  
+  sendPixel( r g , b ) - send a single pixel to the string. Call this once for each pixel in a frame.
+  show() - show the recently sent pixel on the LEDs . Call once per frame. 
+  
+*/
+
+
+// Set the specified pin up as digital out
+
+void ledsetup() {
+  
+  bitSet( PIXEL_DDR , PIXEL_BIT );
+  
+}
+
+void sendPixel( unsigned char r, unsigned char g , unsigned char b )  {
+
+  sendByte(g);          // Neopixel wants colors in green then red then blue order
+  sendByte(r);
+  sendByte(b);
+
+}
+
+
+// Just wait long enough without sending any bots to cause the pixels to latch and display the last sent frame
+
+void show() {
+    DELAY_CYCLES( NS_TO_CYCLES(RES) );
+}
+
+void showColor( unsigned char r , unsigned char g , unsigned char b ) {
+
+  cli();
+  for( int p=0; p<NUM_LEDS; p++ ) {
+    sendPixel( r , g , b );
+  }
+  sei();
+  show();
+
+}
+
+void setup() {
+    
+  ledsetup();
+  
+  pinMode( DATA_PIN , OUTPUT );
+}
+
+// Simple blink on/off.
+void loop() {
+  sendPixel(0, 0, 0);
+  delay(5000);
+  sendPixel(0xff, 0xff, 0xff);
+  delay(5000);
+}
+
+
+
+
+
+
+
+//////////////////////////////////// break //////////////////
+
+/*
 void setup() {
   // Setup the serial output for console/logging.
   Serial.begin(115200);
@@ -147,6 +291,7 @@ void loop()
     ]
   }
   */
+  /*
   size_t arr_size = doc["Data"].size();
   Serial.println();
   for (int s = 0; s < arr_size; s++) {
@@ -209,3 +354,4 @@ void top_to_bot(StaticJsonDocument<1000> data, int cDelay) {
         delay(cDelay);
    }
 }
+*/
