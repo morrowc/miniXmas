@@ -19,7 +19,7 @@
 #define DATA_PIN    2
 #define LED_TYPE    NEOPIXEL
 #define COLOR_ORDER RGB
-#define NUM_LEDS    150
+#define NUM_LEDS    30
 #define BRIGHTNESS  200
 #define  ARDUINOJSON_USE_LONG_LONG 1
 
@@ -44,8 +44,7 @@ long long CURRENT = 0;
 // These values are for digital pin 8 on an Arduino Yun or digital pin 12 on a DueMilinove
 // Note that you could also include the DigitalWriteFast header file to not need to to this lookup.
 
-#define PIXEL_PORT DATA_PIN  // Port of the pin the pixels are connected to
-#define PIXEL_DDR   0   // Port of the pin the pixels are connected to
+#define PIXEL_DDR   1   // Port of the pin the pixels are connected to
 #define PIXEL_BIT   4      // Bit of the pin the pixels are connected to
 
 // These are the timing constraints taken mostly from the WS2812 datasheet 
@@ -72,27 +71,35 @@ long long CURRENT = 0;
 // Make sure we never have a delay less than zero
 #define DELAY_CYCLES(n) ( ((n)>0) ? __builtin_avr_delay_cycles( n ) :  __builtin_avr_delay_cycles( 0 ) ) 
 
-
 void  sendBit(bool) __attribute__ ((optimize(0)));
 
 void sendBit( bool bitVal ) {
     if (  bitVal ) {
-      bitSet(PIXEL_PORT, PIXEL_BIT);
+      // bitSet(DATA_PIN, PIXEL_BIT);
+      // digitalWrite(DATA_PIN, bitVal);
+      digitalWrite(DATA_PIN, (bitVal << 2));
       // 1-bit width less  overhead  for the actual bit setting
-      DELAY_CYCLES(NS_TO_CYCLES(T1H) - 2);
-      bitClear(PIXEL_PORT, PIXEL_BIT);
+      // DELAY_CYCLES(NS_TO_CYCLES(T1H) - 2);
+      delayMicroseconds(700);
+      // bitClear(DATA_PIN, PIXEL_BIT);
+      digitalWrite(DATA_PIN, 0);
       // 1-bit gap less the overhead of the loop
-      DELAY_CYCLES(NS_TO_CYCLES(T1L) - 10);
+      // DELAY_CYCLES(NS_TO_CYCLES(T1L) - 10);
+      delayMicroseconds(700);
     } else {
       // 0-bit width less overhead
-      bitSet(PIXEL_PORT, PIXEL_BIT);
-      DELAY_CYCLES(NS_TO_CYCLES(T0H) - 2);
+      // bitSet(DATA_PIN, PIXEL_BIT);
+      digitalWrite(DATA_PIN, bitVal);
+      // DELAY_CYCLES(NS_TO_CYCLES(T0H) - 2);
+      delayMicroseconds(350);
       // **************************************************************************
       // This line is really the only tight goldilocks timing in the whole program!
       // **************************************************************************
-      bitClear(PIXEL_PORT, PIXEL_BIT);
+      // bitClear(DATA_PIN, PIXEL_BIT);
+      digitalWrite(DATA_PIN, 0);
       // 0-bit gap less overhead of the loop
-      DELAY_CYCLES(NS_TO_CYCLES(T0L) - 10);
+      // DELAY_CYCLES(NS_TO_CYCLES(T0L) - 10);
+      delayMicroseconds(600);
     }
     /*
     * Note that the inter-bit gap can be as long as you want as long as it
@@ -128,7 +135,8 @@ void sendByte( unsigned char byte ) {
 
 void ledsetup() {
   
-  bitSet( PIXEL_DDR , PIXEL_BIT );
+  // bitSet( PIXEL_DDR , PIXEL_BIT );
+  digitalWrite(DATA_PIN, 1);
   
 }
 
@@ -144,7 +152,8 @@ void sendPixel( unsigned char r, unsigned char g , unsigned char b )  {
 // Just wait long enough without sending any bots to cause the pixels to latch and display the last sent frame
 
 void show() {
-    DELAY_CYCLES( NS_TO_CYCLES(RES) );
+    // DELAY_CYCLES( NS_TO_CYCLES(RES) );
+      delayMicroseconds(600);
 }
 
 void showColor( unsigned char r , unsigned char g , unsigned char b ) {
@@ -159,18 +168,22 @@ void showColor( unsigned char r , unsigned char g , unsigned char b ) {
 }
 
 void setup() {
-    
-  ledsetup();
+  pinMode(DATA_PIN , OUTPUT);
+  Serial.begin(9600);
+  // ledsetup();
   
-  pinMode( DATA_PIN , OUTPUT );
 }
 
 // Simple blink on/off.
 void loop() {
-  sendPixel(0, 0, 0);
-  delay(5000);
-  sendPixel(0xff, 0xff, 0xff);
-  delay(5000);
+  Serial.println("Sending zeros");
+  os_intr_lock();
+  showColor(0, 0, 0);
+  delay(500);
+  Serial.println("Sending red");
+  showColor(0xff, 0x00, 0x00);
+  delay(500);
+  os_intr_unlock();
 }
 
 
