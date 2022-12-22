@@ -336,6 +336,7 @@ func (h *handler) clientIdleUpdate(t time.Duration) {
 					log.Errorf("failed to SetColor for client %s: %v", client.Name, err)
 				}
 			}
+			time.Sleep(t / 4)
 		}
 	}
 }
