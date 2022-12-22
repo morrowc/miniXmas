@@ -1,8 +1,6 @@
 var defaultColors = [];
-
 var colorList
 var activeColor
-
 var colorPicker
 
 
