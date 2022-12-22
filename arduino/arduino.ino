@@ -45,7 +45,7 @@ long long CURRENT = 0;
 // Note that you could also include the DigitalWriteFast header file to not need to to this lookup.
 
 #define PIXEL_DDR   1   // Port of the pin the pixels are connected to
-#define PIXEL_BIT   4      // Bit of the pin the pixels are connected to
+#define PIXEL_BIT   B11   // Bit of the pin the pixels are connected to
 
 // These are the timing constraints taken mostly from the WS2812 datasheet 
 
@@ -69,37 +69,56 @@ long long CURRENT = 0;
 #define NS_TO_CYCLES(n) ( (n) / NS_PER_CYCLE )
 
 // Make sure we never have a delay less than zero
-#define DELAY_CYCLES(n) ( ((n)>0) ? __builtin_avr_delay_cycles( n ) :  __builtin_avr_delay_cycles( 0 ) ) 
+// #define DELAY_CYCLES(n) ( ((n)>0) ? __builtin_avr_delay_cycles( n ) :  __builtin_avr_delay_cycles( 0 ) ) 
+
+#define PIN4_MUX PERIPHS_IO_MUX_GPIO4_U
+#define PIN4_FUNC FUNC_GPIO4
+#define PIN4_PIN 4
 
 void  sendBit(bool) __attribute__ ((optimize(0)));
 
 void sendBit( bool bitVal ) {
-    if (  bitVal ) {
-      // bitSet(DATA_PIN, PIXEL_BIT);
-      // digitalWrite(DATA_PIN, bitVal);
-      digitalWrite(DATA_PIN, (bitVal << 2));
-      // 1-bit width less  overhead  for the actual bit setting
-      // DELAY_CYCLES(NS_TO_CYCLES(T1H) - 2);
-      delayMicroseconds(700);
-      // bitClear(DATA_PIN, PIXEL_BIT);
-      digitalWrite(DATA_PIN, 0);
-      // 1-bit gap less the overhead of the loop
-      // DELAY_CYCLES(NS_TO_CYCLES(T1L) - 10);
-      delayMicroseconds(700);
+    if (  bitVal ) {  // 0 bit
+      asm volatile (
+			"sbi %[port], %[bit] \n\t"				// Set the output bit
+			".rept %[onCycles] \n\t"          // Execute NOPs to delay exactly the specified number of cycles
+			"nop \n\t"
+			".endr \n\t"
+			"cbi %[port], %[bit] \n\t"        // Clear the output bit
+			".rept %[offCycles] \n\t"         // Execute NOPs to delay exactly the specified number of cycles
+			"nop \n\t"
+			".endr \n\t"
+			::
+			[port]		"I" (_SFR_IO_ADDR(DATA_PIN)),
+			[bit]		"I" (PIXEL_BIT),
+			[onCycles]	"I" (NS_TO_CYCLES(T1H) - 2),		// 1-bit width less overhead  for the actual bit
+                                                  // setting, note that this delay could be longer
+                                                  // and everything would still work
+			[offCycles] 	"I" (NS_TO_CYCLES(T1L) - 2)		// Minimum interbit delay. Note that we probably
+                                                  // don't need this at all since the loop overhead
+                                                  // will be enough, but here for correctness
+
+		  );
     } else {
-      // 0-bit width less overhead
-      // bitSet(DATA_PIN, PIXEL_BIT);
-      digitalWrite(DATA_PIN, bitVal);
-      // DELAY_CYCLES(NS_TO_CYCLES(T0H) - 2);
-      delayMicroseconds(350);
       // **************************************************************************
-      // This line is really the only tight goldilocks timing in the whole program!
-      // **************************************************************************
-      // bitClear(DATA_PIN, PIXEL_BIT);
-      digitalWrite(DATA_PIN, 0);
-      // 0-bit gap less overhead of the loop
-      // DELAY_CYCLES(NS_TO_CYCLES(T0L) - 10);
-      delayMicroseconds(600);
+		  // This line is really the only tight goldilocks timing in the whole program!
+		  // **************************************************************************
+		  asm volatile (
+		  	"sbi %[port], %[bit] \n\t"				// Set the output bit
+		  	".rept %[onCycles] \n\t"				  // Now timing actually matters. The 0-bit must be long
+                                          // enough to be detected but not too long or it will be a 1-bit
+		  	"nop \n\t"                        // Execute NOPs to delay exactly the specified number of cycles
+		  	".endr \n\t"
+		  	"cbi %[port], %[bit] \n\t"        // Clear the output bit
+		  	".rept %[offCycles] \n\t"         // Execute NOPs to delay exactly the specified number of cycles
+		  	"nop \n\t"
+		  	".endr \n\t"
+		  	::
+		  	[port]		"I" (_SFR_IO_ADDR(DATA_PIN)),
+		  	[bit]		"I" (PIXEL_BIT),
+		  	[onCycles]	"I" (NS_TO_CYCLES(T0H) - 2),
+		  	[offCycles]	"I" (NS_TO_CYCLES(T0L) - 2)
+		  );
     }
     /*
     * Note that the inter-bit gap can be as long as you want as long as it
@@ -114,9 +133,9 @@ void sendByte( unsigned char byte ) {
 
     for( unsigned char bit = 0 ; bit < 8 ; bit++ ) {
 
-      sendBit( bitRead( byte , 7 ) );                // Neopixel wants bit in highest-to-lowest order
-                                                     // so send highest bit (bit #7 in an 8-bit byte since they start at 0)
-      byte <<= 1;                                    // and then shift left so bit 6 moves into 7, 5 moves into 6, etc
+      sendBit( bitRead( byte , 7 ) ); // Neopixel wants bit in highest-to-lowest order
+                                      // so send highest bit (bit #7 in an 8-bit byte since they start at 0)
+      byte <<= 1;                     // and then shift left so bit 6 moves into 7, 5 moves into 6, etc
 
     }
 }
@@ -135,236 +154,55 @@ void sendByte( unsigned char byte ) {
 
 void ledsetup() {
   
+  // WRITE_PERI_REG( PERIPHS_GPIO_BASEADDR + 4, PIXEL_BIT );
   // bitSet( PIXEL_DDR , PIXEL_BIT );
-  digitalWrite(DATA_PIN, 1);
+  // digitalWrite(DATA_PIN, 1);
   
 }
 
 void sendPixel( unsigned char r, unsigned char g , unsigned char b )  {
-
-  sendByte(g);          // Neopixel wants colors in green then red then blue order
+  // Neopixel wants colors in green then red then blue order
+  sendByte(g);
   sendByte(r);
   sendByte(b);
-
 }
 
 
-// Just wait long enough without sending any bots to cause the pixels to latch and display the last sent frame
-
+// Just wait long enough without sending any bots to cause the
+// pixels to latch and display the last sent frame
 void show() {
     // DELAY_CYCLES( NS_TO_CYCLES(RES) );
       delayMicroseconds(600);
 }
 
 void showColor( unsigned char r , unsigned char g , unsigned char b ) {
-
+  // clear interrupts.
   cli();
   for( int p=0; p<NUM_LEDS; p++ ) {
     sendPixel( r , g , b );
   }
+  // Restart interrupts.
   sei();
   show();
-
 }
 
 void setup() {
-  pinMode(DATA_PIN , OUTPUT);
+  // pinMode(DATA_PIN , OUTPUT);
+  PIN_FUNC_SELECT(PIN4_MUX, PIN4_FUNC);
+  PIN_PULLUP_EN(PIN4_MUX);
   Serial.begin(9600);
   // ledsetup();
-  
 }
 
 // Simple blink on/off.
 void loop() {
   Serial.println("Sending zeros");
   os_intr_lock();
-  showColor(0, 0, 0);
-  delay(500);
-  Serial.println("Sending red");
-  showColor(0xff, 0x00, 0x00);
-  delay(500);
+  for (int i=0; i <= 256; i += 16) {
+    Serial.printf("Color %d\n", i);
+    Serial.println();
+    showColor(i, i, i);
+    delay(500);
+  }
   os_intr_unlock();
 }
-
-
-
-
-
-
-
-//////////////////////////////////// break //////////////////
-
-/*
-void setup() {
-  // Setup the serial output for console/logging.
-  Serial.begin(115200);
-  Serial.setDebugOutput(true);
-  Serial.println();
-  Serial.println("[setup]: Starting up.");
-
-  delay(3000); // 3 second delay for recovery
-
-  // Connect to wifi, as a station.
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(SSID, PASS);
-  delay(5000); // 5 second delay for recovery
-  Serial.println("connected to wifi");
-  if ((WiFi.status() == WL_CONNECTED)) {}
-  
-  // tell FastLED about the LED strip configuration
-  FastLED.addLeds<LED_TYPE,DATA_PIN>(leds, NUM_LEDS);
-  FastLED.setCorrection(TypicalLEDStrip);
-  FastLED.setDither(BRIGHTNESS < 255);
-  FastLED.setBrightness(BRIGHTNESS);
-}
-
-// Handle sending a request to the http server, return the raw payload.
-String doHttp(char* url) {
-  // Create an http client in this version of the loop, collect data from
-  // remote server.
-  WiFiClient client;
-  HTTPClient http;
-  http.begin(client, url);
-  int httpResponseCode = http.GET();
-  if (httpResponseCode>0) {
-    // Get the payload as a String()
-    return http.getString();
-  }
-  return String("");
-}
-
-void checkDelay(int st) {
-  while ( (millis() - st) < DELAY ) {}
-}
-
-void loop()
-{
-  int st = millis();
-  Serial.printf("Millis: %d", st);
-  Serial.println();
-  char url[strlen(URL)+50];
-  sprintf(url, "%s?id=%s&leds=%d&len=%d", URL, WiFi.macAddress().c_str(), NUM_LEDS, DELAY);
-
-  String  payload = doHttp(url);
-  // Determine how long the payload is, if zero, error and return..
-  if (payload.length() == 0) {
-    Serial.println("Got zero length HTTP reply");
-    Serial.println();
-    checkDelay(st);
-    return;
-  }
-
-  // Create a JSON Document, and deserialize payload into that.
-  // NOTE: the 10k used here is a guestimate.
-  StaticJsonDocument<10000> doc;
-
-  DeserializationError error = deserializeJson(doc, payload);
-
-  if (error) {
-    Serial.print(F("deserializeJson() failed: "));
-    Serial.println(error.f_str());
-    checkDelay(st);
-    return;
-  }
-
-  long long TS = doc["TS"]; // 1670710298274952000
-  if (CURRENT != TS) {
-    CURRENT = TS;
-  } else {
-    Serial.print("no change in TimeStamp");
-    Serial.println();
-    checkDelay(st);
-    return;
-  }
-
-
-  // Handle each step, with a request to the HTTP service at
-  // each step start.
-  /*
-   * Example data.
-  {
-   "TS":1670778488327762396,
-   "Data":[
-      {
-         "Steps":2,
-         "Colors":[
-            10145074,
-            10145074,
-            10145074
-            ]
-       },
-      {
-         "Steps":2,
-         "Colors":[
-            1231234,
-            1231234,
-            1231234
-            ]
-       }
-    ]
-  }
-  */
-  /*
-  size_t arr_size = doc["Data"].size();
-  Serial.println();
-  for (int s = 0; s < arr_size; s++) {
-    StaticJsonDocument<10000> data = doc["Data"][s];
-    // Collect the period of time to set the intended color.
-    String steps = data["Steps"];
-    int stepsInt = steps.toInt();
-
-    // Loop the number of steps, with DELAY in between.
-    for (int l = 0; l < stepsInt; l++) {
-      for (int i = 0; i < NUM_LEDS; i++) {
-          String color = data["Colors"][i];
-          int cInt = color.toInt();
-          leds[i] = cInt;
-          FastLED.show();
-      }
-      delay(STEP_DELAY);
-    }
-  }
-  // Delay until after the reuqired wait period between changes ocurs.
-  checkDelay(st);
-}
-
-void bot_to_top(StaticJsonDocument<1000> data, int cDelay) {
-    // Chase 5 at a time down the pipe.
-    for (int i = 0; i < NUM_LEDS; i += 5) {
-        String color = data["Colors"][i];
-        int cInt = color.toInt();
-        leds[i] = cInt;
-        leds[i+1] = cInt;
-        leds[i+2] = cInt;
-        leds[i+3] = cInt;
-        leds[i+4] = cInt;
-        FastLED.show();
-        leds[i] = 0;
-        leds[i+1] = 0;
-        leds[i+2] = 0;
-        leds[i+3] = 0;
-        leds[i+4] = 0;
-        delay(cDelay);
-   }
-}
-
-void top_to_bot(StaticJsonDocument<1000> data, int cDelay) {
-    // Chase 5 at a time down the pipe.
-    for (int i = NUM_LEDS; i > 0; i -= 5) {
-        String color = data["Colors"][i];
-        int cInt = color.toInt();
-        leds[i] = cInt;
-        leds[i-1] = cInt;
-        leds[i-2] = cInt;
-        leds[i-3] = cInt;
-        leds[i-4] = cInt;
-        FastLED.show();
-        leds[i] = 0;
-        leds[i-1] = 0;
-        leds[i-2] = 0;
-        leds[i-3] = 0;
-        leds[i-4] = 0;
-        delay(cDelay);
-   }
-}
-*/
