@@ -97,6 +97,10 @@ func TestUpdate(t *testing.T) {
 		desc:     "/update/basic unknown station",
 		reqStr:   "/update/basic/C8:AA:B5:7A:BC:DA",
 		wantCode: http.StatusBadRequest,
+	}, {
+		desc:     "/update/notknown unknown url",
+		reqStr:   "/update/notknown",
+		wantCode: http.StatusBadRequest,
 	}}
 
 	for _, test := range tests {
