@@ -201,18 +201,40 @@ func TestStatus(t *testing.T) {
 
 // UpdateHSV Uri: /update/hsvtime/8c:aa:b5:7a:bc:ad
 func TestUpdateHSVTime(t *testing.T) {
+	postData := `{"Steps":[{"time":1000,"color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}\n`
+
 	tests := []struct {
 		desc     string
 		reqStr   string
 		postData string
+		contentT string
 		want     string
 		wantCode int
 	}{{
 		desc:     "Good Request",
 		reqStr:   "/update/hsvtime/8c:aa:b5:7a:bc:ad",
-		postData: `{"Steps":[{"time":1000,"color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}\n`,
+		postData: postData,
+		contentT: "application/json",
 		want:     "ok",
 		wantCode: http.StatusOK,
+	}, {
+		desc:     "Bad Request- unknown client",
+		reqStr:   "/update/hsvtime/8c:aa:b5:7a:cb:da",
+		postData: postData,
+		contentT: "application/json",
+		wantCode: http.StatusBadRequest,
+	}, {
+		desc:     "Bad Request - wrong slashes",
+		reqStr:   "/update/hsvtime",
+		postData: postData,
+		contentT: "application/json",
+		wantCode: http.StatusBadRequest,
+	}, {
+		desc:     "Bad Request - wrong content-Type",
+		reqStr:   "/update/hsvtime/8c:aa:b5:7a:bc:ad",
+		postData: postData,
+		contentT: "application/www-urlencoded-data",
+		wantCode: http.StatusUnsupportedMediaType,
 	}}
 
 	for _, test := range tests {
@@ -230,7 +252,7 @@ func TestUpdateHSVTime(t *testing.T) {
 			t.Fatalf("[%v]: failed to setup request: %v", test.desc, err)
 		}
 		// Set the content-type header on the post so the receiver can unpackage it.
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Type", test.contentT)
 
 		// ResponseRecorer, satisfy http.ResponseWriter to record the response.
 		rr := httptest.NewRecorder()

@@ -235,15 +235,7 @@ type HSVTimeRequest struct {
 		Color struct {
 			HSV          HSV `json:"$"`
 			InitialValue HSV `json: "initialValue"`
-			/*
-				struct {
-					H int `json:"h"`
-					S int `json:"s"`
-					V int `json:"v"`
-					A int `json:"a"`
-				} `json:"$"`
-			*/
-			Index int `json: "index"`
+			Index        int `json: "index"`
 		} `json:"color"`
 		Time int `json:"time"`
 	} `json:"Steps"`
@@ -480,16 +472,14 @@ func (h *handler) updateHSVTime(w http.ResponseWriter, r *http.Request, reqURLSp
 	var req HSVTimeRequest
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
-
 	// Extract the body in case there are questions.
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return fmt.Errorf("failed to extract body for debug: %v", err)
 	}
-	fmt.Println("ABOUT TO DECODE")
+
 	err = dec.Decode(&req)
 	if err != nil && err != io.EOF {
-		fmt.Printf("DECODE HAD ERROR: %v", err)
 		var syntaxError *json.SyntaxError
 		var unmarshalTypeError *json.UnmarshalTypeError
 
@@ -497,20 +487,17 @@ func (h *handler) updateHSVTime(w http.ResponseWriter, r *http.Request, reqURLSp
 		case errors.As(err, &syntaxError):
 			msg := fmt.Sprintf("Request body contains badly-formed JSON (at position %d)", syntaxError.Offset)
 			log.Errorf(msg)
-			fmt.Println(msg)
 			return &malformedRequest{status: http.StatusBadRequest, msg: msg}
 
 		case errors.Is(err, io.ErrUnexpectedEOF):
 			msg := fmt.Sprintf("Request body contains badly-formed JSON")
 			log.Errorf(msg)
-			fmt.Println(msg)
 			return &malformedRequest{status: http.StatusBadRequest, msg: msg}
 
 		case errors.As(err, &unmarshalTypeError):
-			msg := fmt.Sprintf("Request body contains an invalid value for the %q field (at position %d), body: \n%s",
+			msg := fmt.Sprintf("Request body contains an invalid value for the %q field (at position %d), body: %s",
 				unmarshalTypeError.Field, unmarshalTypeError.Offset, string(b))
 			log.Errorf(msg)
-			fmt.Printf(msg)
 			return &malformedRequest{status: http.StatusBadRequest, msg: msg}
 
 		case strings.HasPrefix(err.Error(), "json: unknown field "):
@@ -528,11 +515,9 @@ func (h *handler) updateHSVTime(w http.ResponseWriter, r *http.Request, reqURLSp
 			return &malformedRequest{status: http.StatusRequestEntityTooLarge, msg: msg}
 
 		default:
-			fmt.Printf("OK FAILED WITH DEFAULT ERROR: %v", err)
 			return err
 		}
 	}
-	fmt.Println("ALL ERRORS HANDLED< DECODE SUCCESS")
 
 	// Convert request to color element
 	var colors []ColorElement
@@ -552,7 +537,6 @@ func (h *handler) updateHSVTime(w http.ResponseWriter, r *http.Request, reqURLSp
 			Steps:  steps,
 		})
 	}
-	fmt.Println("GOT TO END OF COLORS")
 
 	err = client.SetColor(&colors, time.Now().UnixNano())
 	if err != nil {
@@ -561,7 +545,6 @@ func (h *handler) updateHSVTime(w http.ResponseWriter, r *http.Request, reqURLSp
 		fmt.Fprintf(w, "failed to set color: %v", err)
 		return fmt.Errorf("failed to set color: %v", err)
 	}
-	fmt.Println("GOT TO CLIENT SETCOLOR")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, "ok")
 	return nil
