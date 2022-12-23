@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -195,4 +197,65 @@ func TestStatus(t *testing.T) {
 			}
 		}
 	}
+}
+
+// UpdateHSV Uri: /update/hsvtime/8c:aa:b5:7a:bc:ad
+func TestUpdateHSVTime(t *testing.T) {
+	tests := []struct {
+		desc     string
+		reqStr   string
+		postData string
+		want     string
+		wantCode int
+	}{{
+		desc:     "Good Request",
+		reqStr:   "/update/hsvtime/8c:aa:b5:7a:bc:ad",
+		postData: `{"Steps":[{"time":1000,"color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}\n`,
+		want:     "ok",
+		wantCode: http.StatusOK,
+	}}
+
+	for _, test := range tests {
+		// Init client content, so to avoid panic.
+		initClients(2)
+		// Make the fake data to send into the test POST.
+		var b bytes.Buffer
+		if err := json.NewEncoder(&b).Encode(test.postData); err != nil {
+			t.Fatalf("[%v]: failed to encode postData: %v", test.desc, err)
+		}
+
+		// Create a new request with that test data.
+		req, err := http.NewRequest("POST", test.reqStr, &b)
+		if err != nil {
+			t.Fatalf("[%v]: failed to setup request: %v", test.desc, err)
+		}
+		// Set the content-type header on the post so the receiver can unpackage it.
+		req.Header.Set("Content-Type", "application/json")
+
+		// ResponseRecorer, satisfy http.ResponseWriter to record the response.
+		rr := httptest.NewRecorder()
+		h, err := newHandler(9999)
+		if err != nil {
+			t.Fatalf("[%v]: failed to create handler: %v", test.desc, err)
+		}
+		// Call serve on the handler, with the test request.
+		h.ServeHTTP(rr, req)
+
+		// Check status code is expected.
+		if status := rr.Code; status != test.wantCode {
+			t.Errorf("[%v]: handler returned wrong status code: got %v want %v",
+				test.desc, status, test.wantCode)
+		}
+
+		// Validate that the start of the reply is as expected, only if the request was ok.
+		if rr.Code == http.StatusOK {
+			if diff := cmp.Diff(rr.Body.String(), test.want); diff != "" {
+				t.Errorf("[%v]: got/want mismatch got+/want-): %s",
+					test.desc, diff)
+			}
+		}
+	}
+}
+
+func TestUpdateRGBTime(t *testing.T) {
 }
