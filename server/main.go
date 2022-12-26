@@ -14,7 +14,7 @@ import (
 	"time"
 
 	log "github.com/golang/glog"
-	"github.com/lucasb-eyer/go-colorful"
+	colorful "github.com/lucasb-eyer/go-colorful"
 )
 
 const (
