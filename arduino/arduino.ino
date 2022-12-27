@@ -89,7 +89,7 @@ void sendBit( bool bitVal ) {
 			"nop \n\t"
 			".endr \n\t"
 			::
-			[port]		"I" (_SFR_IO_ADDR(DATA_PIN)),
+			[port]		"I" (DATA_PIN),
 			[bit]		"I" (PIXEL_BIT),
 			[onCycles]	"I" (NS_TO_CYCLES(T1H) - 2),		// 1-bit width less overhead  for the actual bit
                                                   // setting, note that this delay could be longer
@@ -114,7 +114,7 @@ void sendBit( bool bitVal ) {
 		  	"nop \n\t"
 		  	".endr \n\t"
 		  	::
-		  	[port]		"I" (_SFR_IO_ADDR(DATA_PIN)),
+		  	[port]		"I" (DATA_PIN),
 		  	[bit]		"I" (PIXEL_BIT),
 		  	[onCycles]	"I" (NS_TO_CYCLES(T0H) - 2),
 		  	[offCycles]	"I" (NS_TO_CYCLES(T0L) - 2)
