@@ -4,8 +4,10 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -26,6 +28,9 @@ const (
 
 	// Period of time between stagnant light coloration.
 	idleTime = 120 * time.Second
+
+	// Max POST read, 1M
+	maxPostRead = 1024 * 1024
 )
 
 var (
@@ -218,15 +223,19 @@ type RGBTimeRequest struct {
 		Time int `json:"time"`
 	}
 }
+type HSV struct {
+	H int `json:"h"`
+	S int `json:"s"`
+	V int `json:"v"`
+	A int `json:"a"`
+}
 
 type HSVTimeRequest struct {
 	Steps []struct {
 		Color struct {
-			HSV struct {
-				H int `json:"h"`
-				S int `json:"s"`
-				V int `json:"v"`
-			} `json:"$"`
+			HSV          HSV `json:"$"`
+			InitialValue HSV `json: "initialValue"`
+			Index        int `json: "index"`
 		} `json:"color"`
 		Time int `json:"time"`
 	} `json:"Steps"`
@@ -336,6 +345,7 @@ func (h *handler) clientIdleUpdate(t time.Duration) {
 					log.Errorf("failed to SetColor for client %s: %v", client.Name, err)
 				}
 			}
+			time.Sleep(t / 4)
 		}
 	}
 }
@@ -359,7 +369,6 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	stepLenStr := r.URL.Query().Get("len")
 	leds, err := strconv.Atoi(ledStr)
 	if err != nil {
-		log.Errorf("failed to parse ledStr(%s) to int: %v", ledStr, err)
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprint(w, "invalid led count")
 		return
@@ -368,7 +377,6 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	// stepLen is the length of time per step in ms.
 	stepLen, err := strconv.Atoi(stepLenStr)
 	if err != nil {
-		log.Errorf("failed to parse stepLenStr(%s) to int: %v", stepLenStr, err)
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprint(w, "invalid steplen")
 		return
@@ -376,7 +384,6 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 
 	client, ok := clientSearch(id, h.clients)
 	if !ok {
-		log.Errorf("unknown client id: %s", id)
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprint(w, "unkonwn client id")
 		return
@@ -392,11 +399,9 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 // update handles setting the current value for timestamp and color dictate.
 // Response to POST /update
 func (h *handler) update(w http.ResponseWriter, r *http.Request) {
-	log.Info("Got update request")
 	reqUrlSplit := strings.Split(r.URL.Path, "/")
 
 	if len(reqUrlSplit) < 3 {
-		log.Errorf("invalid url: %s", r.URL.Path)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -411,7 +416,10 @@ func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 		h.updateRGBTime(w, r, reqUrlSplit)
 	case "hsvtime":
 		// Sets color from JSON response, using HSV color values and time in ms.
-		h.updateHSVTime(w, r, reqUrlSplit)
+		if err := h.updateHSVTime(w, r, reqUrlSplit); err != nil {
+			log.Infof("Error from updateHSVTime: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+		}
 	default:
 		log.Errorf("invalid url: %s", r.URL.Path)
 		w.WriteHeader(http.StatusBadRequest)
@@ -419,12 +427,22 @@ func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// malformedRequest is an error type, Error() satisfies the error interface.
+type malformedRequest struct {
+	status int
+	msg    string
+}
+
+func (mr *malformedRequest) Error() string {
+	return mr.msg
+}
+
 // updateHSVTime takes an incoming request and updates the current color element and steps.
-func (h *handler) updateHSVTime(w http.ResponseWriter, r *http.Request, reqURLSplit []string) {
+func (h *handler) updateHSVTime(w http.ResponseWriter, r *http.Request, reqURLSplit []string) error {
 	if len(reqURLSplit) != 4 {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "invalid url: %s", r.URL.Path)
-		return
+		return fmt.Errorf("invalid url: %s", r.URL.Path)
 	}
 
 	// Get the client id from the url.
@@ -434,24 +452,72 @@ func (h *handler) updateHSVTime(w http.ResponseWriter, r *http.Request, reqURLSp
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "unknown client id: %s", r.URL.Path)
-		return
+		return fmt.Errorf("unknown client id: %s", r.URL.Path)
 	}
 
-	// Read the request body.
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		log.Errorf("failed to read request body: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+	// Only progress if this request is a POST and properly encoded.
+	if r.Header.Get("Content-Type") != "" {
+		v := r.Header.Get("Content-Type")
+		if v != "application/json" {
+			msg := "Content-Type header is not application/json"
+			http.Error(w, msg, http.StatusUnsupportedMediaType)
+			return fmt.Errorf("failed, wrong Content-Type: %v", v)
+		}
 	}
 
-	// Unmarshal the request body into a color dictate.
+	// Limit POST read size, protect against someone eating all our cookies.
+	r.Body = http.MaxBytesReader(w, r.Body, maxPostRead)
+
+	// Create a json.Decoder, to decode the body into an HSVTimeRequest.
 	var req HSVTimeRequest
-	err = json.Unmarshal(body, &req)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+
+	err := dec.Decode(&req)
 	if err != nil {
-		log.Errorf("failed to unmarshal request body: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		var syntaxError *json.SyntaxError
+		var unmarshalTypeError *json.UnmarshalTypeError
+
+		switch {
+		case errors.As(err, &syntaxError):
+			msg := fmt.Sprintf(
+				"Request body contains badly-formed JSON (at position %d)", syntaxError.Offset)
+			log.Errorf(msg)
+			return &malformedRequest{status: http.StatusBadRequest, msg: msg}
+
+		case errors.Is(err, io.ErrUnexpectedEOF):
+			msg := fmt.Sprintf("Request body contains badly-formed JSON")
+			log.Error(msg)
+			return &malformedRequest{status: http.StatusBadRequest, msg: msg}
+
+		case errors.As(err, &unmarshalTypeError):
+			msg := fmt.Sprintf(
+				"Request body contains an invalid value for the %q field (at position %d)",
+				unmarshalTypeError.Field, unmarshalTypeError.Offset)
+			log.Errorf(msg)
+			return &malformedRequest{status: http.StatusBadRequest, msg: msg}
+
+		case strings.HasPrefix(err.Error(), "json: unknown field "):
+			fieldName := strings.TrimPrefix(err.Error(), "json: unknown field ")
+			msg := fmt.Sprintf("Request body contains unknown field %s", fieldName)
+			log.Error(msg)
+			return &malformedRequest{status: http.StatusBadRequest, msg: msg}
+
+		case errors.Is(err, io.EOF):
+			msg := "Request body must not be empty"
+			return &malformedRequest{status: http.StatusBadRequest, msg: msg}
+
+		case err.Error() == "http: request body too large":
+			msg := "Request body must not be larger than 1MB"
+			return &malformedRequest{status: http.StatusRequestEntityTooLarge, msg: msg}
+
+		case err == io.EOF:
+			log.Info("Found end of the stream")
+			break
+		default:
+			log.Infof("Found default error: %v", err)
+			return err
+		}
 	}
 
 	// Convert request to color element
@@ -478,8 +544,11 @@ func (h *handler) updateHSVTime(w http.ResponseWriter, r *http.Request, reqURLSp
 		log.Errorf("failed to set color: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "failed to set color: %v", err)
-		return
+		return fmt.Errorf("failed to set color: %v", err)
 	}
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "ok")
+	return nil
 }
 
 func (h *handler) updateRGBTime(w http.ResponseWriter, r *http.Request, reqURLSplit []string) {

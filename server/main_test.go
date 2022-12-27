@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -94,6 +95,10 @@ func TestUpdate(t *testing.T) {
 	}, {
 		desc:     "/update/basic unknown station",
 		reqStr:   "/update/basic/C8:AA:B5:7A:BC:DA",
+		wantCode: http.StatusBadRequest,
+	}, {
+		desc:     "/update/notknown unknown url",
+		reqStr:   "/update/notknown",
 		wantCode: http.StatusBadRequest,
 	}}
 
@@ -195,4 +200,132 @@ func TestStatus(t *testing.T) {
 			}
 		}
 	}
+}
+
+// UpdateHSV Uri: /update/hsvtime/8c:aa:b5:7a:bc:ad
+func TestUpdateHSVTime(t *testing.T) {
+	postData := `{"Steps":[{"time":1000,"color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}`
+	// Improper field Steps -> St
+	badData := `{"St":[{"time":1000,"color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}`
+	// Improper typing int -> string.
+	badData2 := `{"Steps":[{"time":"ABC","color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}`
+	// Improper json syntax (missing [ at start of array)
+	badData3 := `{"Steps":{"time":"ABC","color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}`
+	// Missing trailing json content.
+	badData4 := `{"Steps":{"time":"ABC","color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}`
+
+	tests := []struct {
+		desc     string
+		reqStr   string
+		postData string
+		contentT string
+		want     string
+		wantCode int
+	}{{
+		desc:     "Good Request",
+		reqStr:   "/update/hsvtime/8c:aa:b5:7a:bc:ad",
+		postData: postData,
+		contentT: "application/json",
+		want:     "ok",
+		wantCode: http.StatusOK,
+	}, {
+		desc:     "Bad Request- unknown client",
+		reqStr:   "/update/hsvtime/8c:aa:b5:7a:cb:da",
+		postData: postData,
+		contentT: "application/json",
+		wantCode: http.StatusBadRequest,
+	}, {
+		desc:     "Bad Request - wrong slashes",
+		reqStr:   "/update/hsvtime",
+		postData: postData,
+		contentT: "application/json",
+		wantCode: http.StatusBadRequest,
+	}, {
+		desc:     "Bad Request - wrong content-Type",
+		reqStr:   "/update/hsvtime/8c:aa:b5:7a:bc:ad",
+		postData: postData,
+		contentT: "application/www-urlencoded-data",
+		wantCode: http.StatusUnsupportedMediaType,
+	}, {
+		desc:     "Bad Request - bad json content - unknown field",
+		reqStr:   "/update/hsvtime/8c:aa:b5:7a:bc:ad",
+		postData: badData,
+		contentT: "application/json",
+		wantCode: http.StatusBadRequest,
+	}, {
+		desc:     "Bad Request - bad json content - zero length",
+		reqStr:   "/update/hsvtime/8c:aa:b5:7a:bc:ad",
+		postData: "",
+		contentT: "application/json",
+		wantCode: http.StatusBadRequest,
+	}, {
+		desc:     "Bad Request - bad json content - incorrect field type",
+		reqStr:   "/update/hsvtime/8c:aa:b5:7a:bc:ad",
+		postData: badData2,
+		contentT: "application/json",
+		wantCode: http.StatusBadRequest,
+	}, {
+		desc:     "Bad Request - bad json content - badly formed json (missing array start)",
+		reqStr:   "/update/hsvtime/8c:aa:b5:7a:bc:ad",
+		postData: badData3,
+		contentT: "application/json",
+		wantCode: http.StatusBadRequest,
+	}, {
+		desc:     "Bad Request - bad json content - badly formed json (missing ending)",
+		reqStr:   "/update/hsvtime/8c:aa:b5:7a:bc:ad",
+		postData: badData4,
+		contentT: "application/json",
+		wantCode: http.StatusBadRequest,
+	}}
+
+	for _, test := range tests {
+		// Init client content, so to avoid panic.
+		initClients(2)
+		// Make the fake data to send into the test POST, as an io.Reader.
+		reader := bytes.NewBufferString(test.postData)
+
+		// Create a new request with that test data.
+		req, err := http.NewRequest(http.MethodPost, test.reqStr, reader)
+		if err != nil {
+			t.Fatalf("[%v]: failed to setup request: %v", test.desc, err)
+		}
+
+		// Set the content-type header on the post so the receiver can unpackage it.
+		req.Header.Set("Content-Type", test.contentT)
+
+		// ResponseRecorder, satisfy http.ResponseWriter to record the response.
+		rr := httptest.NewRecorder()
+
+		// Create a new Handler.
+		h, err := newHandler(9999)
+		if err != nil {
+			t.Fatalf("[%v]: failed to create handler: %v", test.desc, err)
+		}
+		// Call serve on the handler, with the test request.
+		h.ServeHTTP(rr, req)
+		result := rr.Result()
+		// Read the body from the result/response.
+		defer result.Body.Close()
+		body, err := ioutil.ReadAll(result.Body)
+		if err != nil {
+			t.Fatalf("failed to read the result body: %v", err)
+		}
+
+		// Check status code is expected.
+		if status := result.StatusCode; status != test.wantCode {
+			t.Errorf("[%v]: handler returned wrong status code: got %v want %v, body: %s",
+				test.desc, status, test.wantCode, string(body))
+		}
+
+		// Validate that the reply is as expected, only if the request was ok.
+		if result.StatusCode == http.StatusOK {
+			if diff := cmp.Diff(string(body), test.want); diff != "" {
+				t.Errorf("[%v]: got/want mismatch got+/want-): %s",
+					test.desc, diff)
+			}
+		}
+	}
+}
+
+func TestUpdateRGBTime(t *testing.T) {
 }

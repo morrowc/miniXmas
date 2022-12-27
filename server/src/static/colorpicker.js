@@ -1,8 +1,6 @@
 var defaultColors = [];
-
 var colorList
 var activeColor
-
 var colorPicker
 
 
@@ -78,7 +76,6 @@ function sendReq() {
     for (var i = 0; i < timeSelects.length; i++) {
         times.push(timeSelects[i].children[0].value);
     }
-    console.log(timeSelects)
     var colors = colorPicker.colors;
     var data = {Steps: []};
     for (var i = 0; i < colors.length; i++) {
