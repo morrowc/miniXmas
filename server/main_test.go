@@ -207,6 +207,7 @@ func TestUpdateHSVTime(t *testing.T) {
 	postData := `{"Steps":[{"time":1000,"color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}`
 	badData := `{"St":[{"time":1000,"color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}`
 	badData2 := `{"Steps":[{"time":"ABC","color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}`
+	badData3 := `{"Steps":{"time":"ABC","color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}`
 
 	tests := []struct {
 		desc     string
@@ -256,6 +257,12 @@ func TestUpdateHSVTime(t *testing.T) {
 		desc:     "Bad Request - bad json content - incorrect field type",
 		reqStr:   "/update/hsvtime/8c:aa:b5:7a:bc:ad",
 		postData: badData2,
+		contentT: "application/json",
+		wantCode: http.StatusBadRequest,
+	}, {
+		desc:     "Bad Request - bad json content - badly formed json (missing array start)",
+		reqStr:   "/update/hsvtime/8c:aa:b5:7a:bc:ad",
+		postData: badData3,
 		contentT: "application/json",
 		wantCode: http.StatusBadRequest,
 	}}
