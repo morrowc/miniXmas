@@ -205,9 +205,14 @@ func TestStatus(t *testing.T) {
 // UpdateHSV Uri: /update/hsvtime/8c:aa:b5:7a:bc:ad
 func TestUpdateHSVTime(t *testing.T) {
 	postData := `{"Steps":[{"time":1000,"color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}`
+	// Improper field Steps -> St
 	badData := `{"St":[{"time":1000,"color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}`
+	// Improper typing int -> string.
 	badData2 := `{"Steps":[{"time":"ABC","color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}`
+	// Improper json syntax (missing [ at start of array)
 	badData3 := `{"Steps":{"time":"ABC","color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}`
+	// Missing trailing json content.
+	badData4 := `{"Steps":{"time":"ABC","color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}`
 
 	tests := []struct {
 		desc     string
