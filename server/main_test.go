@@ -205,6 +205,7 @@ func TestStatus(t *testing.T) {
 // UpdateHSV Uri: /update/hsvtime/8c:aa:b5:7a:bc:ad
 func TestUpdateHSVTime(t *testing.T) {
 	postData := `{"Steps":[{"time":1000,"color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}`
+	badData := `{"St":[{"time":1000,"color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}`
 
 	tests := []struct {
 		desc     string
@@ -238,6 +239,12 @@ func TestUpdateHSVTime(t *testing.T) {
 		postData: postData,
 		contentT: "application/www-urlencoded-data",
 		wantCode: http.StatusUnsupportedMediaType,
+	}, {
+		desc:     "Bad Request - bad json content",
+		reqStr:   "/update/hsvtime/8c:aa:b5:7a:bc:ad",
+		postData: badData,
+		contentT: "application/json",
+		wantCode: http.StatusBadRequest,
 	}}
 
 	for _, test := range tests {
