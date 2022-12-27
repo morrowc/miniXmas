@@ -270,6 +270,12 @@ func TestUpdateHSVTime(t *testing.T) {
 		postData: badData3,
 		contentT: "application/json",
 		wantCode: http.StatusBadRequest,
+	}, {
+		desc:     "Bad Request - bad json content - badly formed json (missing ending)",
+		reqStr:   "/update/hsvtime/8c:aa:b5:7a:bc:ad",
+		postData: badData4,
+		contentT: "application/json",
+		wantCode: http.StatusBadRequest,
 	}}
 
 	for _, test := range tests {
