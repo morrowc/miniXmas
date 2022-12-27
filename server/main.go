@@ -16,7 +16,7 @@ import (
 	"time"
 
 	log "github.com/golang/glog"
-	"github.com/lucasb-eyer/go-colorful"
+	colorful "github.com/lucasb-eyer/go-colorful"
 )
 
 const (
@@ -468,35 +468,32 @@ func (h *handler) updateHSVTime(w http.ResponseWriter, r *http.Request, reqURLSp
 	// Limit POST read size, protect against someone eating all our cookies.
 	r.Body = http.MaxBytesReader(w, r.Body, maxPostRead)
 
-	// Unmarshal the request body into a color dictate.
+	// Create a json.Decoder, to decode the body into an HSVTimeRequest.
 	var req HSVTimeRequest
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
-	// Extract the body in case there are questions.
-	b, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return fmt.Errorf("failed to extract body for debug: %v", err)
-	}
 
-	err = dec.Decode(&req)
-	if err != nil && err != io.EOF {
+	err := dec.Decode(&req)
+	if err != nil {
 		var syntaxError *json.SyntaxError
 		var unmarshalTypeError *json.UnmarshalTypeError
 
 		switch {
 		case errors.As(err, &syntaxError):
-			msg := fmt.Sprintf("Request body contains badly-formed JSON (at position %d)", syntaxError.Offset)
+			msg := fmt.Sprintf(
+				"Request body contains badly-formed JSON (at position %d)", syntaxError.Offset)
 			log.Errorf(msg)
 			return &malformedRequest{status: http.StatusBadRequest, msg: msg}
 
 		case errors.Is(err, io.ErrUnexpectedEOF):
 			msg := fmt.Sprintf("Request body contains badly-formed JSON")
-			log.Errorf(msg)
+			log.Error(msg)
 			return &malformedRequest{status: http.StatusBadRequest, msg: msg}
 
 		case errors.As(err, &unmarshalTypeError):
-			msg := fmt.Sprintf("Request body contains an invalid value for the %q field (at position %d), body: %s",
-				unmarshalTypeError.Field, unmarshalTypeError.Offset, string(b))
+			msg := fmt.Sprintf(
+				"Request body contains an invalid value for the %q field (at position %d)",
+				unmarshalTypeError.Field, unmarshalTypeError.Offset)
 			log.Errorf(msg)
 			return &malformedRequest{status: http.StatusBadRequest, msg: msg}
 
@@ -514,7 +511,11 @@ func (h *handler) updateHSVTime(w http.ResponseWriter, r *http.Request, reqURLSp
 			msg := "Request body must not be larger than 1MB"
 			return &malformedRequest{status: http.StatusRequestEntityTooLarge, msg: msg}
 
+		case err == io.EOF:
+			log.Info("Found end of the stream")
+			break
 		default:
+			log.Infof("Found default error: %v", err)
 			return err
 		}
 	}

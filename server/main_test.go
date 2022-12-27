@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -205,7 +204,7 @@ func TestStatus(t *testing.T) {
 
 // UpdateHSV Uri: /update/hsvtime/8c:aa:b5:7a:bc:ad
 func TestUpdateHSVTime(t *testing.T) {
-	postData := `{"Steps":[{"time":1000,"color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}\n`
+	postData := `{"Steps":[{"time":1000,"color":{"$":{"h":29,"s":32,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":0}},{"time":1000,"color":{"$":{"h":126,"s":51,"v":100,"a":1},"initialValue":{"h":0,"s":0,"v":100,"a":1},"index":1}}]}`
 
 	tests := []struct {
 		desc     string
@@ -244,38 +243,45 @@ func TestUpdateHSVTime(t *testing.T) {
 	for _, test := range tests {
 		// Init client content, so to avoid panic.
 		initClients(2)
-		// Make the fake data to send into the test POST.
-		var b bytes.Buffer
-		if err := json.NewEncoder(&b).Encode(test.postData); err != nil {
-			t.Fatalf("[%v]: failed to encode postData: %v", test.desc, err)
-		}
+		// Make the fake data to send into the test POST, as an io.Reader.
+		reader := bytes.NewBufferString(test.postData)
 
 		// Create a new request with that test data.
-		req, err := http.NewRequest("POST", test.reqStr, &b)
+		req, err := http.NewRequest(http.MethodPost, test.reqStr, reader)
 		if err != nil {
 			t.Fatalf("[%v]: failed to setup request: %v", test.desc, err)
 		}
+
 		// Set the content-type header on the post so the receiver can unpackage it.
 		req.Header.Set("Content-Type", test.contentT)
 
-		// ResponseRecorer, satisfy http.ResponseWriter to record the response.
+		// ResponseRecorder, satisfy http.ResponseWriter to record the response.
 		rr := httptest.NewRecorder()
+
+		// Create a new Handler.
 		h, err := newHandler(9999)
 		if err != nil {
 			t.Fatalf("[%v]: failed to create handler: %v", test.desc, err)
 		}
 		// Call serve on the handler, with the test request.
 		h.ServeHTTP(rr, req)
-
-		// Check status code is expected.
-		if status := rr.Code; status != test.wantCode {
-			t.Errorf("[%v]: handler returned wrong status code: got %v want %v",
-				test.desc, status, test.wantCode)
+		result := rr.Result()
+		// Read the body from the result/response.
+		defer result.Body.Close()
+		body, err := ioutil.ReadAll(result.Body)
+		if err != nil {
+			t.Fatalf("failed to read the result body: %v", err)
 		}
 
-		// Validate that the start of the reply is as expected, only if the request was ok.
-		if rr.Code == http.StatusOK {
-			if diff := cmp.Diff(rr.Body.String(), test.want); diff != "" {
+		// Check status code is expected.
+		if status := result.StatusCode; status != test.wantCode {
+			t.Errorf("[%v]: handler returned wrong status code: got %v want %v, body: %s",
+				test.desc, status, test.wantCode, string(body))
+		}
+
+		// Validate that the reply is as expected, only if the request was ok.
+		if result.StatusCode == http.StatusOK {
+			if diff := cmp.Diff(string(body), test.want); diff != "" {
 				t.Errorf("[%v]: got/want mismatch got+/want-): %s",
 					test.desc, diff)
 			}
