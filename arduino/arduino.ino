@@ -79,44 +79,49 @@ void  sendBit(bool) __attribute__ ((optimize(0)));
 
 void sendBit( bool bitVal ) {
     if (  bitVal ) {  // 0 bit
+      // Turn the bit on.
+      digitalWrite(DATA_PIN, HIGH);
       asm volatile (
-			"sbi %[port], %[bit] \n\t"				// Set the output bit
 			".rept %[onCycles] \n\t"          // Execute NOPs to delay exactly the specified number of cycles
 			"nop \n\t"
 			".endr \n\t"
-			"cbi %[port], %[bit] \n\t"        // Clear the output bit
+      ::
+			[onCycles]	"I" (NS_TO_CYCLES(T1H) - 2)		// 1-bit width less overhead  for the actual bit
+                                                // setting, note that this delay could be longer
+                                                // and everything would still work
+		  );
+
+      // Turn the bit off.
+      digitalWrite(DATA_PIN, LOW);
+      asm volatile (
 			".rept %[offCycles] \n\t"         // Execute NOPs to delay exactly the specified number of cycles
 			"nop \n\t"
 			".endr \n\t"
 			::
-			[port]		"I" (DATA_PIN),
-			[bit]		"I" (PIXEL_BIT),
-			[onCycles]	"I" (NS_TO_CYCLES(T1H) - 2),		// 1-bit width less overhead  for the actual bit
-                                                  // setting, note that this delay could be longer
-                                                  // and everything would still work
 			[offCycles] 	"I" (NS_TO_CYCLES(T1L) - 2)		// Minimum interbit delay. Note that we probably
                                                   // don't need this at all since the loop overhead
                                                   // will be enough, but here for correctness
-
 		  );
     } else {
       // **************************************************************************
 		  // This line is really the only tight goldilocks timing in the whole program!
 		  // **************************************************************************
+      digitalWrite(DATA_PIN, HIGH);
 		  asm volatile (
-		  	"sbi %[port], %[bit] \n\t"				// Set the output bit
 		  	".rept %[onCycles] \n\t"				  // Now timing actually matters. The 0-bit must be long
                                           // enough to be detected but not too long or it will be a 1-bit
 		  	"nop \n\t"                        // Execute NOPs to delay exactly the specified number of cycles
 		  	".endr \n\t"
-		  	"cbi %[port], %[bit] \n\t"        // Clear the output bit
+		  	::
+		  	[onCycles]	"I" (NS_TO_CYCLES(T0H) - 2)
+		  );
+
+      digitalWrite(DATA_PIN, HIGH);
+      asm volatile (
 		  	".rept %[offCycles] \n\t"         // Execute NOPs to delay exactly the specified number of cycles
 		  	"nop \n\t"
 		  	".endr \n\t"
 		  	::
-		  	[port]		"I" (DATA_PIN),
-		  	[bit]		"I" (PIXEL_BIT),
-		  	[onCycles]	"I" (NS_TO_CYCLES(T0H) - 2),
 		  	[offCycles]	"I" (NS_TO_CYCLES(T0L) - 2)
 		  );
     }
