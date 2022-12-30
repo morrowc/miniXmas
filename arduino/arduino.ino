@@ -19,7 +19,7 @@
 #define DATA_PIN    2
 #define LED_TYPE    NEOPIXEL
 #define COLOR_ORDER RGB
-#define NUM_LEDS    30
+#define NUM_LEDS    1
 #define BRIGHTNESS  200
 #define  ARDUINOJSON_USE_LONG_LONG 1
 
@@ -56,6 +56,7 @@ long long CURRENT = 0;
 #define T0L  800    // Width of a 0 bit in ns
 
 #define RES 6000    // Width of the low gap between bits to cause a frame to latch
+#define LOOP_DELAY 41
 
 // Here are some convience defines for using nanoseconds specs to generate actual CPU delays
 
@@ -81,49 +82,56 @@ void sendBit( bool bitVal ) {
     if (  bitVal ) {  // 0 bit
       // Turn the bit on.
       digitalWrite(DATA_PIN, HIGH);
+      /*
       asm volatile (
 			".rept %[onCycles] \n\t"          // Execute NOPs to delay exactly the specified number of cycles
 			"nop \n\t"
 			".endr \n\t"
       ::
-			[onCycles]	"I" (NS_TO_CYCLES(T1H) - 2)		// 1-bit width less overhead  for the actual bit
+			[onCycles]	"I"  ((NS_TO_CYCLES(T1H) - 2) / LOOP_DELAY)		// 1-bit width less overhead  for the actual bit
                                                 // setting, note that this delay could be longer
                                                 // and everything would still work
 		  );
+      */
 
       // Turn the bit off.
       digitalWrite(DATA_PIN, LOW);
+      /*
       asm volatile (
 			".rept %[offCycles] \n\t"         // Execute NOPs to delay exactly the specified number of cycles
 			"nop \n\t"
 			".endr \n\t"
 			::
-			[offCycles] 	"I" (NS_TO_CYCLES(T1L) - 2)		// Minimum interbit delay. Note that we probably
+			[offCycles] 	"I" ((NS_TO_CYCLES(T1L) - 2) / LOOP_DELAY)		// Minimum interbit delay. Note that we probably
                                                   // don't need this at all since the loop overhead
                                                   // will be enough, but here for correctness
 		  );
+      */
     } else {
       // **************************************************************************
 		  // This line is really the only tight goldilocks timing in the whole program!
 		  // **************************************************************************
       digitalWrite(DATA_PIN, HIGH);
-		  asm volatile (
+		  /*asm volatile (
 		  	".rept %[onCycles] \n\t"				  // Now timing actually matters. The 0-bit must be long
                                           // enough to be detected but not too long or it will be a 1-bit
 		  	"nop \n\t"                        // Execute NOPs to delay exactly the specified number of cycles
 		  	".endr \n\t"
 		  	::
-		  	[onCycles]	"I" (NS_TO_CYCLES(T0H) - 2)
+		  	[onCycles]	"I" ((NS_TO_CYCLES(T0H) - 2) / LOOP_DELAY)
 		  );
+      */
 
-      digitalWrite(DATA_PIN, HIGH);
+      digitalWrite(DATA_PIN, LOW);
+      /*
       asm volatile (
 		  	".rept %[offCycles] \n\t"         // Execute NOPs to delay exactly the specified number of cycles
 		  	"nop \n\t"
 		  	".endr \n\t"
 		  	::
-		  	[offCycles]	"I" (NS_TO_CYCLES(T0L) - 2)
+		  	[offCycles]	"I" ((NS_TO_CYCLES(T0L) - 2) / LOOP_DELAY)
 		  );
+      */
     }
     /*
     * Note that the inter-bit gap can be as long as you want as long as it
@@ -192,7 +200,7 @@ void showColor( unsigned char r , unsigned char g , unsigned char b ) {
 }
 
 void setup() {
-  // pinMode(DATA_PIN , OUTPUT);
+  pinMode(DATA_PIN , OUTPUT);
   PIN_FUNC_SELECT(PIN4_MUX, PIN4_FUNC);
   PIN_PULLUP_EN(PIN4_MUX);
   Serial.begin(9600);
@@ -201,13 +209,17 @@ void setup() {
 
 // Simple blink on/off.
 void loop() {
-  Serial.println("Sending zeros");
+  // Serial.println("Sending zeros");
   os_intr_lock();
+  /*
   for (int i=0; i <= 256; i += 16) {
     Serial.printf("Color %d\n", i);
     Serial.println();
     showColor(i, i, i);
     delay(500);
   }
+  */
+  showColor(128, 128, 128);
+  delay(500);
   os_intr_unlock();
 }
