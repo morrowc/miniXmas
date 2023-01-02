@@ -76,7 +76,7 @@ long long CURRENT = 0;
 #define PIN4_FUNC FUNC_GPIO4
 #define PIN4_PIN 4
 
-void  sendBit(bool) __attribute__ ((optimize(0)));
+void  sendBit(bool) __attribute__ ((optimize(3)));
 
 void sendBit( bool bitVal ) {
     if (  bitVal ) {  // 0 bit
