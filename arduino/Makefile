@@ -1,8 +1,10 @@
+BFLAGS = --build-property build.f_cpu=160000000L
+
 all: compile upload
 
 compile: arduino.ino
-	/home/morrowc/bin/arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2 ${PWD}
+	 arduino-cli compile --fqbn esp8266:esp8266:d1_mini ${BFLAGS}  ${PWD}
 
 upload: arduino.ino
-	/home/morrowc/bin/arduino-cli upload --fqbn esp8266:esp8266:nodemcuv2 -p /dev/ttyUSB0 ${PWD}
+	 arduino-cli upload --fqbn esp8266:esp8266:d1_mini -p /dev/ttyUSB0 ${PWD}
 

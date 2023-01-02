@@ -162,17 +162,6 @@ void sendByte( unsigned char byte ) {
   
 */
 
-
-// Set the specified pin up as digital out
-
-void ledsetup() {
-  
-  // WRITE_PERI_REG( PERIPHS_GPIO_BASEADDR + 4, PIXEL_BIT );
-  // bitSet( PIXEL_DDR , PIXEL_BIT );
-  // digitalWrite(DATA_PIN, 1);
-  
-}
-
 void sendPixel( unsigned char r, unsigned char g , unsigned char b )  {
   // Neopixel wants colors in green then red then blue order
   sendByte(g);
@@ -200,11 +189,12 @@ void showColor( unsigned char r , unsigned char g , unsigned char b ) {
 }
 
 void setup() {
+  system_update_cpu_freq(160);
   pinMode(DATA_PIN , OUTPUT);
   PIN_FUNC_SELECT(PIN4_MUX, PIN4_FUNC);
   PIN_PULLUP_EN(PIN4_MUX);
   Serial.begin(9600);
-  // ledsetup();
+  Serial.printf("CPU speed: %d\n", F_CPU);
 }
 
 // Simple blink on/off.
