@@ -17,3 +17,5 @@ jobs:
         uses: Legion2/arduino-builder-action@v2.0.0
         with:
           board: "esp8266:esp8266:nodemcuv2"
+      - name: Set Docker platform
+        run: echo "::set-env name=DOCKER_DEFAULT_PLATFORM::linux/amd64"
